@@ -1,0 +1,121 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test-sqlite:
+    runs-on: ubuntu-latest
+    env:
+      DJANGO_SETTINGS_MODULE: config.settings.dev
+      SECRET_KEY: ci-only-secret-key
+      USE_SQLITE: "true"
+      DEBUG: "false"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -r requirements-dev.txt
+      - name: Lint
+        run: ruff check .
+      - name: Check migrations
+        run: python manage.py makemigrations --check --dry-run
+      - name: Django system checks
+        run: python manage.py check
+      - name: Tests (SQLite)
+        run: python manage.py test --verbosity 1
+
+  test-postgres:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16.4-alpine
+        env:
+          POSTGRES_DB: tcms
+          POSTGRES_USER: tcms
+          POSTGRES_PASSWORD: tcms
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U tcms"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 20
+    env:
+      DJANGO_SETTINGS_MODULE: config.settings.dev
+      SECRET_KEY: ci-only-secret-key
+      USE_SQLITE: "false"
+      DB_ENGINE: postgresql
+      DB_NAME: tcms
+      DB_USER: tcms
+      DB_PASSWORD: tcms
+      DB_HOST: 127.0.0.1
+      DB_PORT: "5432"
+      DEBUG: "false"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -r requirements-dev.txt
+      - name: Migrations apply cleanly
+        run: python manage.py migrate --noinput
+      - name: Tests (PostgreSQL)
+        run: python manage.py test --verbosity 1
+
+  deploy-check:
+    runs-on: ubuntu-latest
+    env:
+      DJANGO_SETTINGS_MODULE: config.settings.prod
+      SECRET_KEY: ci-deploy-check-only-not-a-real-production-secret
+      DEBUG: "false"
+      USE_SQLITE: "true"
+      ALLOWED_HOSTS: example.com
+      CSRF_TRUSTED_ORIGINS: https://example.com
+      SECURE_SSL_REDIRECT: "true"
+      USE_X_FORWARDED_PROTO: "true"
+      EMAIL_USE_TLS: "true"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -r requirements-dev.txt
+      - name: Production deployment checks
+        run: python manage.py check --deploy --fail-level WARNING
+      - name: Validate OpenAPI schema
+        run: python manage.py spectacular --file /tmp/schema.yml --validate
+
+  dependency-audit:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+      - name: Install audit tool
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install pip-audit
+      - name: Audit pinned runtime dependencies
+        timeout-minutes: 10
+        run: python -m pip_audit -r requirements.txt --progress-spinner off

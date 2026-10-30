@@ -1,0 +1,135 @@
+﻿x-app-environment: &app-environment
+  DJANGO_SETTINGS_MODULE: config.settings.prod
+  SECRET_KEY: ${SECRET_KEY:?set SECRET_KEY in .env or the environment}
+  DEBUG: "false"
+  ALLOWED_HOSTS: ${ALLOWED_HOSTS:-localhost,127.0.0.1}
+  CSRF_TRUSTED_ORIGINS: ${CSRF_TRUSTED_ORIGINS:-}
+  SECURE_SSL_REDIRECT: ${SECURE_SSL_REDIRECT:-false}
+  USE_SQLITE: "false"
+  DB_ENGINE: postgresql
+  DB_NAME: ${DB_NAME:-tcms}
+  DB_USER: ${DB_USER:-tcms}
+  DB_PASSWORD: ${DB_PASSWORD:-tcms}
+  DB_HOST: postgres
+  DB_PORT: "5432"
+  CELERY_BROKER_URL: redis://redis:6379/0
+  CELERY_RESULT_BACKEND: redis://redis:6379/1
+  REDIS_CACHE_URL: redis://redis:6379/2
+  EMAIL_HOST: mailpit
+  EMAIL_PORT: "1025"
+  EMAIL_USE_TLS: "false"
+  DEFAULT_FROM_EMAIL: ${DEFAULT_FROM_EMAIL:-no-reply@tcms.local}
+  PORTAL_WEB_BASE_URL: ${PORTAL_WEB_BASE_URL:-http://localhost:8000}
+  PORTAL_VERIFY_URL: ${PORTAL_VERIFY_URL:-http://localhost:8000/portal/verify-email/}
+  OUTBOX_WEBHOOK_URLS: ${OUTBOX_WEBHOOK_URLS:-}
+  WEBHOOK_SIGNING_SECRET: ${WEBHOOK_SIGNING_SECRET:-}
+  USE_S3_STORAGE: ${USE_S3_STORAGE:-false}
+  AWS_S3_ENDPOINT_URL: ${AWS_S3_ENDPOINT_URL:-http://minio:9000}
+  AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID:-minioadmin}
+  AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY:-minioadmin}
+  AWS_STORAGE_BUCKET_NAME: ${AWS_STORAGE_BUCKET_NAME:-tcms-documents}
+
+services:
+  web:
+    build: .
+    restart: unless-stopped
+    environment:
+      <<: *app-environment
+      RUN_MIGRATIONS: "1"
+    ports:
+      - "8000:8000"
+    volumes:
+      - media:/app/media
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_started
+    healthcheck:
+      test:
+        - CMD
+        - python
+        - -c
+        - "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/api/v1/health/').read()"
+      interval: 10s
+      timeout: 5s
+      retries: 6
+      start_period: 30s
+
+  worker:
+    build: .
+    restart: unless-stopped
+    command: ["celery", "-A", "config", "worker", "-l", "info"]
+    environment:
+      <<: *app-environment
+      RUN_MIGRATIONS: "0"
+    volumes:
+      - media:/app/media
+    depends_on:
+      web:
+        condition: service_healthy
+
+  beat:
+    build: .
+    restart: unless-stopped
+    command: ["celery", "-A", "config", "beat", "-l", "info"]
+    environment:
+      <<: *app-environment
+      RUN_MIGRATIONS: "0"
+    depends_on:
+      web:
+        condition: service_healthy
+
+  postgres:
+    image: postgres:16.4-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${DB_NAME:-tcms}
+      POSTGRES_USER: ${DB_USER:-tcms}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-tcms}
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-tcms}"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  redis:
+    image: redis:7.4-alpine
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  mailpit:
+    image: axllent/mailpit:v1.21
+    restart: unless-stopped
+    ports:
+      - "1025:1025"
+      - "8025:8025"
+
+  minio:
+    image: minio/minio:RELEASE.2024-10-13T13-34-11Z
+    restart: unless-stopped
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: minioadmin
+      MINIO_ROOT_PASSWORD: minioadmin
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    volumes:
+      - miniodata:/data
+
+volumes:
+  pgdata:
+  miniodata:
+  media:
+

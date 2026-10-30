@@ -1,0 +1,48 @@
+{% extends "portal/base.html" %}
+{% block title %}TASL Training Centre Portal — register, book, track{% endblock %}
+
+{% block content %}
+<section class="hero">
+  <div class="shell hero-inner">
+    <div class="hero-copy">
+      <p class="eyebrow">Safety training that fits your schedule</p>
+      <h1>Book your training, get your joining instructions, track your certificates.</h1>
+      <p class="lede">
+        Register once with a single verified email address. Your bookings, course joining
+        instructions and certificates stay in one place — and we remind you before
+        your certificate expires.
+      </p>
+      <div class="hero-actions">
+        <a class="btn btn-primary" href="{% url 'portal_web:register' %}">Create your account</a>
+        <a class="btn btn-outline" href="{% url 'portal_web:login' %}">Sign in</a>
+      </div>
+      <p class="hero-note">Registration is free. You must be 18 or older to register.</p>
+    </div>
+    <div class="hero-card">
+      <h2>How it works</h2>
+      <ol class="steps">
+        <li><strong>Register</strong> with your name, date of birth and email.</li>
+        <li><strong>Verify</strong> your email with the link we send you.</li>
+        <li><strong>Get booked</strong> — your coordinator places you on a course session.</li>
+        <li><strong>Attend</strong> — your joining instructions arrive by email.</li>
+        <li><strong>Collect</strong> your certificate and renew before it expires.</li>
+      </ol>
+    </div>
+  </div>
+</section>
+
+<section class="shell features">
+  <article class="card">
+    <h3>One account</h3>
+    <p>A single verified email keeps your bookings, joining instructions and certificates together.</p>
+  </article>
+  <article class="card">
+    <h3>Joining instructions</h3>
+    <p>Every confirmed seat comes with course joining instructions — venue, dates and what to bring.</p>
+  </article>
+  <article class="card">
+    <h3>Expiry reminders</h3>
+    <p>We remind you 90, 60 and 30 days before a certificate expires so you can renew in time.</p>
+  </article>
+</section>
+{% endblock %}

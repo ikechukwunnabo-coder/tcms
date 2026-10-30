@@ -1,0 +1,61 @@
+{% extends "portal/base.html" %}
+{% block title %}Register — TASL Training Centre Portal{% endblock %}
+
+{% block content %}
+<section class="shell narrow">
+  <div class="panel">
+    <h1>Create your learner account</h1>
+    <p class="panel-lede">Use the email address you want your joining instructions and certificates sent to.</p>
+
+    <form method="post" novalidate>
+      {% csrf_token %}
+      {% if form.non_field_errors %}
+        <div class="alert alert-error" role="alert">{{ form.non_field_errors }}</div>
+      {% endif %}
+
+      <div class="field-grid">
+        <div class="field">
+          <label for="{{ form.first_name.id_for_label }}">First name</label>
+          {{ form.first_name }}
+          {% for e in form.first_name.errors %}<p class="field-error" id="{{ form.first_name.id_for_label }}_error">{{ e }}</p>{% endfor %}
+        </div>
+        <div class="field">
+          <label for="{{ form.last_name.id_for_label }}">Surname</label>
+          {{ form.last_name }}
+          {% for e in form.last_name.errors %}<p class="field-error" id="{{ form.last_name.id_for_label }}_error">{{ e }}</p>{% endfor %}
+        </div>
+      </div>
+
+      <div class="field">
+        <label for="{{ form.email.id_for_label }}">Email address</label>
+        {{ form.email }}
+        {% for e in form.email.errors %}<p class="field-error" id="{{ form.email.id_for_label }}_error">{{ e }}</p>{% endfor %}
+      </div>
+
+      <div class="field-grid">
+        <div class="field">
+          <label for="{{ form.birth_date.id_for_label }}">Date of birth</label>
+          {{ form.birth_date }}
+          {% for e in form.birth_date.errors %}<p class="field-error" id="{{ form.birth_date.id_for_label }}_error">{{ e }}</p>{% endfor %}
+          <p class="field-hint">{{ form.birth_date.help_text }}</p>
+        </div>
+        <div class="field">
+          <label for="{{ form.sex.id_for_label }}">Sex</label>
+          {{ form.sex }}
+          {% for e in form.sex.errors %}<p class="field-error" id="{{ form.sex.id_for_label }}_error">{{ e }}</p>{% endfor %}
+        </div>
+      </div>
+
+      <div class="field">
+        <label for="{{ form.password.id_for_label }}">Password</label>
+        {{ form.password }}
+        {% for e in form.password.errors %}<p class="field-error" id="{{ form.password.id_for_label }}_error">{{ e }}</p>{% endfor %}
+        <p class="field-hint">{{ form.password.help_text }}</p>
+      </div>
+
+      <button type="submit" class="btn btn-primary btn-block">Create account</button>
+      <p class="form-foot">Already registered? <a href="{% url 'portal_web:login' %}">Sign in</a>.</p>
+    </form>
+  </div>
+</section>
+{% endblock %}

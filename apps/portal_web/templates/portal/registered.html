@@ -1,0 +1,24 @@
+{% extends "portal/base.html" %}
+{% block title %}Check your email — TASL Training Centre Portal{% endblock %}
+
+{% block content %}
+<section class="shell narrow">
+  <div class="panel panel-center">
+    <span class="icon-badge" aria-hidden="true">&#9993;</span>
+    <h1>Check your email</h1>
+    <p class="panel-lede">
+      We have sent a verification link to the address you registered with.
+      Open it to activate your account — the link expires in 24 hours.
+    </p>
+    <form method="post" action="{% url 'portal_web:resend-verification' %}" class="stack">
+      {% csrf_token %}
+      <div class="field">
+        <label for="resend-email">Did not get the email?</label>
+        <input type="email" name="email" id="resend-email" placeholder="you@example.com" autocomplete="email" required>
+      </div>
+      <button type="submit" class="btn btn-outline btn-block">Send it again</button>
+    </form>
+    <p class="form-foot"><a href="{% url 'portal_web:login' %}">Back to sign in</a></p>
+  </div>
+</section>
+{% endblock %}

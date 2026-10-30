@@ -1,0 +1,12 @@
+{% extends "portal/base.html" %}
+{% block title %}Something went wrong — TASL Training Centre Portal{% endblock %}
+
+{% block content %}
+<section class="shell narrow">
+  <div class="panel panel-center">
+    <h1>We could not complete that</h1>
+    <p class="panel-lede">{{ message }}</p>
+    <a class="btn btn-outline btn-block" href="{% url 'portal_web:dashboard' %}">Back to dashboard</a>
+  </div>
+</section>
+{% endblock %}

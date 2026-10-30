@@ -1,0 +1,111 @@
+# Production stack: external PostgreSQL, Redis, S3/MinIO and SMTP are required.
+# Use docker-compose.yml for the self-contained local/dev stack instead.
+#
+#   cp .env.example .env   # fill in every required value, then:
+#   docker compose -f docker-compose.prod.yml up -d --build
+#
+# The web service binds to loopback only; terminate TLS at a reverse proxy that
+# forwards to 127.0.0.1:8000 (set USE_X_FORWARDED_PROTO=true behind it).
+
+x-app-environment: &app-environment
+  DJANGO_SETTINGS_MODULE: config.settings.prod
+  SECRET_KEY: ${SECRET_KEY:?set SECRET_KEY}
+  DEBUG: "false"
+  ALLOWED_HOSTS: ${ALLOWED_HOSTS:?set ALLOWED_HOSTS}
+  CSRF_TRUSTED_ORIGINS: ${CSRF_TRUSTED_ORIGINS:?set CSRF_TRUSTED_ORIGINS}
+  SECURE_SSL_REDIRECT: ${SECURE_SSL_REDIRECT:-true}
+  USE_X_FORWARDED_PROTO: ${USE_X_FORWARDED_PROTO:-true}
+  USE_SQLITE: "false"
+  DB_ENGINE: postgresql
+  DB_NAME: ${DB_NAME:?set DB_NAME}
+  DB_USER: ${DB_USER:?set DB_USER}
+  DB_PASSWORD: ${DB_PASSWORD:?set DB_PASSWORD}
+  DB_HOST: ${DB_HOST:?set DB_HOST}
+  DB_PORT: ${DB_PORT:-5432}
+  CELERY_BROKER_URL: ${CELERY_BROKER_URL:?set CELERY_BROKER_URL}
+  CELERY_RESULT_BACKEND: ${CELERY_RESULT_BACKEND:?set CELERY_RESULT_BACKEND}
+  REDIS_CACHE_URL: ${REDIS_CACHE_URL:?set REDIS_CACHE_URL}
+  EMAIL_HOST: ${EMAIL_HOST:?set EMAIL_HOST}
+  EMAIL_PORT: ${EMAIL_PORT:-587}
+  EMAIL_HOST_USER: ${EMAIL_HOST_USER:-}
+  EMAIL_HOST_PASSWORD: ${EMAIL_HOST_PASSWORD:-}
+  EMAIL_USE_TLS: ${EMAIL_USE_TLS:-true}
+  DEFAULT_FROM_EMAIL: ${DEFAULT_FROM_EMAIL:?set DEFAULT_FROM_EMAIL}
+  USE_S3_STORAGE: "true"
+  AWS_S3_ENDPOINT_URL: ${AWS_S3_ENDPOINT_URL:-}
+  AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID:?set AWS_ACCESS_KEY_ID}
+  AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY:?set AWS_SECRET_ACCESS_KEY}
+  AWS_STORAGE_BUCKET_NAME: ${AWS_STORAGE_BUCKET_NAME:?set AWS_STORAGE_BUCKET_NAME}
+  AWS_S3_REGION_NAME: ${AWS_S3_REGION_NAME:-us-east-1}
+  AWS_S3_ADDRESSING_STYLE: ${AWS_S3_ADDRESSING_STYLE:-virtual}
+  PORTAL_WEB_BASE_URL: ${PORTAL_WEB_BASE_URL:?set PORTAL_WEB_BASE_URL}
+  PORTAL_VERIFY_URL: ${PORTAL_VERIFY_URL:?set PORTAL_VERIFY_URL}
+  BILLING_TAX_PCT: ${BILLING_TAX_PCT:-0}
+  ENFORCE_FACILITY_CAPACITY: ${ENFORCE_FACILITY_CAPACITY:-true}
+  ENFORCE_VENUE_EXCLUSIVITY: ${ENFORCE_VENUE_EXCLUSIVITY:-true}
+  CERTIFICATE_ORG_NAME: ${CERTIFICATE_ORG_NAME:-TASL Training Centre}
+  CERTIFICATE_ORG_ADDRESS: ${CERTIFICATE_ORG_ADDRESS:-}
+  CERTIFICATE_TITLE: ${CERTIFICATE_TITLE:-CERTIFICATE OF TRAINING}
+  CERTIFICATE_LOGO_KEY: ${CERTIFICATE_LOGO_KEY:-}
+  CERTIFICATE_SIGNATORY_NAME: ${CERTIFICATE_SIGNATORY_NAME:-Managing Director}
+  CERTIFICATE_SIGNATORY_TITLE: ${CERTIFICATE_SIGNATORY_TITLE:-Managing Director}
+  CERTIFICATE_VERIFY_URL: ${CERTIFICATE_VERIFY_URL:-}
+  OUTBOX_WEBHOOK_URLS: ${OUTBOX_WEBHOOK_URLS:-}
+  WEBHOOK_SIGNING_SECRET: ${WEBHOOK_SIGNING_SECRET:-}
+
+services:
+  web:
+    build: .
+    restart: always
+    environment:
+      <<: *app-environment
+      RUN_MIGRATIONS: "1"
+    ports:
+      - "127.0.0.1:8000:8000"
+    healthcheck:
+      test:
+        - CMD
+        - python
+        - -c
+        - "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/api/v1/health/').read()"
+      interval: 15s
+      timeout: 5s
+      retries: 6
+      start_period: 45s
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "5"
+
+  worker:
+    build: .
+    restart: always
+    command: ["celery", "-A", "config", "worker", "-l", "info", "--concurrency=4"]
+    environment:
+      <<: *app-environment
+      RUN_MIGRATIONS: "0"
+    depends_on:
+      web:
+        condition: service_healthy
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "5"
+
+  beat:
+    build: .
+    restart: always
+    command: ["celery", "-A", "config", "beat", "-l", "info"]
+    environment:
+      <<: *app-environment
+      RUN_MIGRATIONS: "0"
+    depends_on:
+      web:
+        condition: service_healthy
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "5"

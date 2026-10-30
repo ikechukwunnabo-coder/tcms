@@ -1,0 +1,31 @@
+{% extends "portal/base.html" %}
+{% block title %}Sign in — TASL Training Centre Portal{% endblock %}
+
+{% block content %}
+<section class="shell narrow">
+  <div class="panel">
+    <h1>Sign in</h1>
+    <p class="panel-lede">Use the email address and password you registered with.</p>
+
+    <form method="post" novalidate>
+      {% csrf_token %}
+      <div class="field">
+        <label for="{{ form.email.id_for_label }}">Email address</label>
+        {{ form.email }}
+        {% for e in form.email.errors %}<p class="field-error" id="{{ form.email.id_for_label }}_error">{{ e }}</p>{% endfor %}
+      </div>
+      <div class="field">
+        <label for="{{ form.password.id_for_label }}">Password</label>
+        {{ form.password }}
+        {% for e in form.password.errors %}<p class="field-error" id="{{ form.password.id_for_label }}_error">{{ e }}</p>{% endfor %}
+      </div>
+      <button type="submit" class="btn btn-primary btn-block">Sign in</button>
+      <p class="form-foot">
+        <a href="{% url 'portal_web:password-reset' %}">Forgot your password?</a><br>
+        No account yet? <a href="{% url 'portal_web:register' %}">Register</a>.<br>
+        Need a new verification link? <a href="{% url 'portal_web:resend-verification-page' %}">Send it again</a>.
+      </p>
+    </form>
+  </div>
+</section>
+{% endblock %}

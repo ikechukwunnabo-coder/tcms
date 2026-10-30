@@ -1,0 +1,20 @@
+{% extends "portal/base.html" %}
+{% block title %}Resend verification — TASL Training Centre Portal{% endblock %}
+
+{% block content %}
+<section class="shell narrow">
+  <div class="panel panel-center">
+    <h1>Resend the verification link</h1>
+    <p class="panel-lede">Enter the email address you registered with and we will send a fresh link.</p>
+    <form method="post" action="{% url 'portal_web:resend-verification' %}" class="stack">
+      {% csrf_token %}
+      <div class="field">
+        <label for="resend-email">Email address</label>
+        <input type="email" name="email" id="resend-email" placeholder="you@example.com" autocomplete="email" required>
+      </div>
+      <button type="submit" class="btn btn-primary btn-block">Send verification link</button>
+    </form>
+    <p class="form-foot"><a href="{% url 'portal_web:login' %}">Back to sign in</a></p>
+  </div>
+</section>
+{% endblock %}

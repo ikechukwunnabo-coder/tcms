@@ -1,0 +1,25 @@
+{% extends "portal/base.html" %}
+{% block title %}Email verified — TASL Training Centre Portal{% endblock %}
+
+{% block content %}
+<section class="shell narrow">
+  <div class="panel panel-center">
+    {% if ok %}
+      <span class="icon-badge icon-badge-ok" aria-hidden="true">&#10003;</span>
+      <h1>Your email is verified</h1>
+      <p class="panel-lede">Your learner record has been created. You can now sign in and track your training.</p>
+      <a class="btn btn-primary btn-block" href="{% url 'portal_web:login' %}">Sign in</a>
+    {% elif expired %}
+      <span class="icon-badge icon-badge-warn" aria-hidden="true">!</span>
+      <h1>This link has expired</h1>
+      <p class="panel-lede">Verification links are valid for 24 hours. Request a new one and we will send it straight away.</p>
+      <a class="btn btn-primary btn-block" href="{% url 'portal_web:resend-verification-page' %}">Request a new link</a>
+    {% else %}
+      <span class="icon-badge icon-badge-warn" aria-hidden="true">!</span>
+      <h1>This link is not valid</h1>
+      <p class="panel-lede">The link may have been used already. Request a new verification link to continue.</p>
+      <a class="btn btn-primary btn-block" href="{% url 'portal_web:resend-verification-page' %}">Request a new link</a>
+    {% endif %}
+  </div>
+</section>
+{% endblock %}

@@ -1,0 +1,43 @@
+[project]
+name = "tcms"
+version = "0.1.0"
+description = "TASL Training Centre Management System (TCMS) — Django/DRF backend"
+requires-python = ">=3.12"
+
+dependencies = [
+    "Django>=6.1,<6.2",
+    "djangorestframework>=3.16",
+    "drf-spectacular>=0.28",
+    "django-filter>=24.1",
+    "celery>=5.5",
+    "redis>=5.0",
+    "requests>=2.32",
+    "psycopg[binary]>=3.2",
+    "python-dotenv>=1.0",
+    "reportlab>=4.2",
+    "whitenoise>=6.7",
+    "gunicorn>=23.0",
+    "django-storages[s3]>=1.14",
+    "boto3>=1.35",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.0",
+    "pytest-django>=4.9",
+    "ruff>=0.6",
+    "pip-audit>=2.7",
+]
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+extend-exclude = ["**/migrations", "schema.yml"]
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B"]
+
+[tool.pytest.ini_options]
+DJANGO_SETTINGS_MODULE = "config.settings.dev"
+python_files = ["test_*.py", "*_test.py", "tests.py"]
+addopts = "-q"

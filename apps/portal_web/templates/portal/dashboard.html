@@ -1,0 +1,152 @@
+{% extends "portal/base.html" %}
+{% block title %}Dashboard — TASL Training Centre Portal{% endblock %}
+
+{% block content %}
+<section class="shell">
+  <div class="dashboard-head">
+    <div>
+      <p class="eyebrow">{% if is_lead %}Corporate lead{% else %}Learner dashboard{% endif %}</p>
+      <h1>Welcome back{% if user.first_name %}, {{ user.first_name }}{% endif %}</h1>
+      <p class="panel-lede">
+        {% if is_lead %}
+          You are the lead for <strong>{{ account.corporate_account.name }}</strong>.
+          You can see bookings and certificates for every nominee on this account.
+        {% else %}
+          Your bookings, joining instructions and certificates are all in one place.
+        {% endif %}
+      </p>
+    </div>
+  </div>
+
+  {% if not account or not account.learner_id and not is_lead %}
+    <div class="alert alert-warn" role="alert">
+      Your email is not verified yet, so your learner record is not complete.
+      <a href="{% url 'portal_web:resend-verification-page' %}">Send a new verification link</a>.
+    </div>
+  {% endif %}
+
+  {% if is_lead %}
+    <div class="panel">
+      <h2>Nominees</h2>
+      {% if learners %}
+        <div class="table-scroll">
+          <table class="data-table">
+            <caption class="visually-hidden">Nominees on this corporate account</caption>
+            <thead>
+              <tr><th scope="col">Name</th><th scope="col">Badge no.</th><th scope="col">Date of birth</th></tr>
+            </thead>
+            <tbody>
+              {% for learner in learners %}
+                <tr>
+                  <td>{{ learner.surname }}{% if learner.first_name %}, {{ learner.first_name }}{% endif %}</td>
+                  <td class="mono">{{ learner.badge_no }}</td>
+                  <td>{{ learner.birth_date|date:"j M Y"|default:"—" }}</td>
+                </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      {% else %}
+        <p class="muted">No nominees have been added to this account yet.</p>
+      {% endif %}
+    </div>
+  {% endif %}
+
+  <div class="panel">
+    <h2>Your bookings</h2>
+    {% if bookings %}
+      <div class="table-scroll">
+        <table class="data-table">
+          <caption class="visually-hidden">Your course bookings</caption>
+          <thead>
+            <tr>
+              <th scope="col">Course</th>
+              <th scope="col">Session</th>
+              <th scope="col">Venue</th>
+              <th scope="col">Status</th>
+              <th scope="col">Joining instructions</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for row in bookings %}
+              <tr>
+                <td>
+                  {% if row.course %}
+                    {{ row.course.name }}
+                    <span class="mono muted">{{ row.course.course_code }}</span>
+                  {% else %}
+                    <span class="muted">Course pending</span>
+                  {% endif %}
+                </td>
+                <td>
+                  {% if row.session %}
+                    {{ row.session.start_date|date:"j M Y" }}
+                    {% if row.session.end_date and row.session.end_date != row.session.start_date %}
+                      &ndash; {{ row.session.end_date|date:"j M Y" }}
+                    {% endif %}
+                  {% else %}
+                    <span class="muted">—</span>
+                  {% endif %}
+                </td>
+                <td>
+                  {% if row.venue %}{{ row.venue.name }}{% else %}<span class="muted">—</span>{% endif %}
+                </td>
+                <td><span class="pill pill-{{ row.enrolment.state }}">{{ row.enrolment.get_state_display }}</span></td>
+                <td class="actions">
+                  {% if row.cji %}
+                    <a class="btn btn-outline btn-sm" href="{% url 'portal_web:booking-cji' row.enrolment.pk %}">View</a>
+                    <form method="post" action="{% url 'portal_web:booking-cji-resend' row.enrolment.pk %}" class="inline-form">
+                      {% csrf_token %}
+                      <button type="submit" class="btn btn-ghost btn-sm">Resend</button>
+                    </form>
+                  {% else %}
+                    <span class="muted">Not issued yet</span>
+                  {% endif %}
+                </td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    {% else %}
+      <p class="muted">You have no bookings yet. Courses are booked through your training coordinator.</p>
+    {% endif %}
+  </div>
+
+  <div class="panel">
+    <h2>Your certificates</h2>
+    {% if certificates %}
+      <div class="table-scroll">
+        <table class="data-table">
+          <caption class="visually-hidden">Your certificates</caption>
+          <thead>
+            <tr>
+              <th scope="col">Certificate no.</th>
+              <th scope="col">Issued</th>
+              <th scope="col">Expires</th>
+              <th scope="col">Status</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for row in certificates %}
+              <tr>
+                <td class="mono">{{ row.cert.certificate_no }}</td>
+                <td>{{ row.cert.issued_at|date:"j M Y"|default:"—" }}</td>
+                <td>
+                  {{ row.cert.expiry_date|date:"j M Y"|default:"—" }}
+                  {% if row.days_left is not None and row.days_left >= 0 %}
+                    <span class="muted">({{ row.days_left }} days)</span>
+                  {% endif %}
+                </td>
+                <td><span class="pill pill-{{ row.state }}">{{ row.state|capfirst }}</span></td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    {% else %}
+      <p class="muted">No certificates have been issued to you yet.</p>
+    {% endif %}
+  </div>
+</section>
+{% endblock %}
