@@ -69,3 +69,50 @@ class ReportingAPITests(APITestCase):
         self._auth(self.admin)
         response = self.client.post("/api/v1/report-defs/", payload, format="json")
         self.assertEqual(response.status_code, 201, response.data)
+
+
+class DashboardAPITests(APITestCase):
+    @classmethod
+    def setUpTestData(cls):
+        call_command("seed_roles", verbosity=0)
+        cls.admin = User.objects.create_user("dashadmin", password="pw12345678")
+        cls.admin.roles.add(Role.objects.get(pk=RoleCode.SYSTEM_ADMIN))
+        cls.medic = User.objects.create_user("dashmedic", password="pw12345678")
+        cls.medic.roles.add(Role.objects.get(pk=RoleCode.MEDIC))
+
+    def _auth(self, user):
+        token, _ = Token.objects.get_or_create(user=user)
+        self.client.credentials(HTTP_AUTHORIZATION=f"Token {token.key}")
+
+    def test_dashboard_available_to_every_staff_role(self):
+        self._auth(self.medic)
+        response = self.client.get("/api/v1/dashboard/")
+        self.assertEqual(response.status_code, 200)
+        for key in ("kpis", "workflow", "my_stages", "trend", "course_mix", "work_queue"):
+            self.assertIn(key, response.data)
+        self.assertEqual(len(response.data["trend"]), 6)
+
+    def test_dashboard_denied_anonymously(self):
+        self.client.credentials()
+        self.assertEqual(self.client.get("/api/v1/dashboard/").status_code, 401)
+
+    def test_flow_csv_export_is_reporting_scoped(self):
+        self._auth(self.admin)
+        response = self.client.get("/api/v1/reports/export/?dataset=flow")
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response["Content-Type"], "text/csv")
+        self.assertIn("status,code,name,count,terminal", response.content.decode())
+
+        self._auth(self.medic)
+        self.assertEqual(
+            self.client.get("/api/v1/reports/export/?dataset=flow").status_code, 403
+        )
+
+    def test_learners_csv_export_and_unknown_dataset(self):
+        self._auth(self.admin)
+        response = self.client.get("/api/v1/reports/export/?dataset=learners")
+        self.assertEqual(response.status_code, 200)
+        self.assertIn("badge_no,surname", response.content.decode())
+
+        unknown = self.client.get("/api/v1/reports/export/?dataset=nope")
+        self.assertEqual(unknown.status_code, 400)

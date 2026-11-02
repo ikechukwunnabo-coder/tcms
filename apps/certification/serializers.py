@@ -11,11 +11,16 @@ from apps.certification.models import (
 
 class CertificateSerializer(serializers.ModelSerializer):
     learner_name = serializers.CharField(source="learner.full_name", read_only=True)
+    badge_no = serializers.CharField(source="learner.badge_no", read_only=True)
+    course_code = serializers.CharField(
+        source="training_record.course.course_code", read_only=True
+    )
 
     class Meta:
         model = Certificate
         fields = [
-            "id", "training_record", "learner", "learner_name", "certificate_no",
+            "id", "training_record", "learner", "learner_name", "badge_no",
+            "course_code", "certificate_no",
             "format", "issued_at", "issued_by", "printed_at", "printed_by",
             "id_issued_at", "id_printed_at", "expiry_date", "object_key",
             "md_approved_by", "md_approved_at", "signature_applied", "seal_applied",

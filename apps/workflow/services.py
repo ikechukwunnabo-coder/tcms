@@ -65,6 +65,11 @@ def advance(record, user, *, action: str = "approve", reason: str = "") -> Workf
     if action in ("reject", "cancel") and not reason.strip():
         raise ReasonRequired(f"reason required for {action} (R-WF-03)")
 
+    if current.id == WorkflowStatusCode.REJECTED:
+        if action != "approve":
+            raise InvalidTransition("a rejected record can only re-enter the flow")
+        return reenter(record, user, action=action)
+
     if not user_has_role(user, current.next_role):
         raise RoleNotPermitted(
             f"user lacks next_role {current.next_role_id} for status {current.id} (R-WF-02)"

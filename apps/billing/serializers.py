@@ -40,6 +40,11 @@ class InvoiceLineSerializer(serializers.ModelSerializer):
 
 class InvoiceSerializer(serializers.ModelSerializer):
     lines = InvoiceLineSerializer(many=True, read_only=True)
+    learner_name = serializers.CharField(source="learner.full_name", read_only=True)
+    corporate_account_name = serializers.CharField(
+        source="corporate_account.name", read_only=True
+    )
+    balance = serializers.SerializerMethodField()
 
     class Meta:
         model = Invoice
@@ -47,8 +52,10 @@ class InvoiceSerializer(serializers.ModelSerializer):
             "id",
             "invoice_no",
             "corporate_account",
+            "corporate_account_name",
             "enrolment",
             "learner",
+            "learner_name",
             "issue_date",
             "due_date",
             "currency",
@@ -56,10 +63,14 @@ class InvoiceSerializer(serializers.ModelSerializer):
             "tax",
             "total",
             "amount_paid",
+            "balance",
             "status",
             "notes",
             "lines",
         ]
+
+    def get_balance(self, obj) -> str:
+        return f"{(obj.total or 0) - (obj.amount_paid or 0):.2f}"
 
 
 class InvoiceLineInputSerializer(serializers.Serializer):
@@ -99,11 +110,14 @@ class InvoiceUpdateSerializer(serializers.ModelSerializer):
 
 
 class PaymentSerializer(serializers.ModelSerializer):
+    invoice_no = serializers.CharField(source="invoice.invoice_no", read_only=True)
+
     class Meta:
         model = Payment
         fields = [
             "id",
             "invoice",
+            "invoice_no",
             "payment_ref",
             "amount",
             "paid_at",

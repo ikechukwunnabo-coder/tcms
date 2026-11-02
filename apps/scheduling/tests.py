@@ -9,6 +9,7 @@ from rest_framework.test import APITestCase
 from apps.accounts.models import Role, User
 from apps.catalogue.models import Course
 from apps.common.enums import BookingState, EnrolmentStatus, SessionStatus
+from apps.delivery.models import TrainingRecord
 from apps.integration.models import OutboxEvent
 from apps.learners.models import Learner
 from apps.scheduling import services as svc
@@ -184,6 +185,33 @@ class BookingAllocationTests(TestCase):
             svc.confirm(enrolment)
 
 
+class TrainingRecordCreationTests(TestCase):
+    @classmethod
+    def setUpTestData(cls):
+        call_command("seed_roles", verbosity=0)
+        call_command("seed_data", verbosity=0)
+        cls.course = make_course("REC")
+
+    def test_confirm_opens_a_training_record(self):
+        session = make_session(self.course, date(2026, 3, 2), end=date(2026, 3, 4))
+        enrolment = svc.book(make_learner("TR1"), session)
+        svc.confirm(enrolment)
+        record = TrainingRecord.objects.get(enrolment=enrolment)
+        self.assertEqual(record.learner_id, enrolment.learner_id)
+        self.assertEqual(record.session_id, session.pk)
+        self.assertEqual(record.course_id, self.course.pk)
+        self.assertEqual(record.status.code, "new_record")
+        self.assertEqual(record.start_date, session.start_date)
+        self.assertEqual(record.end_date, session.end_date)
+
+    def test_confirm_is_idempotent_for_the_training_record(self):
+        session = make_session(self.course, date(2026, 3, 2))
+        enrolment = svc.book(make_learner("TR2"), session)
+        svc.confirm(enrolment)
+        svc._ensure_training_record(enrolment, session)
+        self.assertEqual(TrainingRecord.objects.filter(enrolment=enrolment).count(), 1)
+
+
 class BookingAPITests(APITestCase):
     @classmethod
     def setUpTestData(cls):
@@ -220,3 +248,17 @@ class BookingAPITests(APITestCase):
         response = self.client.get(f"/api/v1/sessions/{session.pk}/availability/")
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.data["seats_available"], 8)
+
+    def test_create_booking_uses_the_domain_service(self):
+        session = make_session(self.course, date(2026, 3, 2))
+        learner = make_learner("API1")
+        self._auth(self.accounts)
+        response = self.client.post(
+            "/api/v1/enrolments/",
+            {"learner": learner.pk, "requested_session": session.pk},
+            format="json",
+        )
+        self.assertEqual(response.status_code, 201, response.data)
+        self.assertTrue(response.data["booking_ref"])
+        self.assertEqual(response.data["state"], BookingState.REGISTERED)
+        self.assertEqual(response.data["requested_session"], session.pk)

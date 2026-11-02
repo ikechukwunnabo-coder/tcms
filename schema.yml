@@ -2847,6 +2847,23 @@ paths:
       responses:
         '204':
           description: No response body
+  /api/v1/dashboard/:
+    get:
+      operationId: v1_dashboard_retrieve
+      description: One call powering the staff operations board.
+      tags:
+      - v1
+      security:
+      - tokenAuth: []
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: {}
+          description: ''
   /api/v1/documents/:
     get:
       operationId: v1_documents_list
@@ -3140,9 +3157,8 @@ paths:
     post:
       operationId: v1_enrolments_create
       description: |-
-        ModelViewSet guarded by :class:`RolePermission`.
-
-        Subclasses set ``required_roles`` / ``write_roles`` (tuples of RoleCode).
+        Create a booking request through the domain service (booking ref,
+        initial state, creator and overbooking checks).
       tags:
       - v1
       requestBody:
@@ -8334,6 +8350,44 @@ paths:
               schema:
                 $ref: '#/components/schemas/ReportDef'
           description: ''
+  /api/v1/reports/export/:
+    get:
+      operationId: v1_reports_export_retrieve
+      description: Role-scoped CSV export for operational datasets.
+      parameters:
+      - in: query
+        name: dataset
+        schema:
+          type: string
+        description: Operational dataset to export as CSV.
+        required: true
+      tags:
+      - v1
+      security:
+      - tokenAuth: []
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: string
+                format: binary
+          description: ''
+        '400':
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: {}
+          description: ''
+        '403':
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: {}
+          description: ''
   /api/v1/reports/flow-status/:
     get:
       operationId: v1_reports_flow_status_retrieve
@@ -11482,6 +11536,12 @@ components:
         learner_name:
           type: string
           readOnly: true
+        badge_no:
+          type: string
+          readOnly: true
+        course_code:
+          type: string
+          readOnly: true
         certificate_no:
           type: string
           readOnly: true
@@ -11571,8 +11631,10 @@ components:
           nullable: true
           description: Corporate ZIP batch this certificate ships in (BR-17a).
       required:
+      - badge_no
       - batch
       - certificate_no
+      - course_code
       - expiry_date
       - format
       - id
@@ -11918,6 +11980,9 @@ components:
         course_name:
           type: string
           readOnly: true
+        course_code:
+          type: string
+          readOnly: true
         venue:
           type: integer
           nullable: true
@@ -11954,6 +12019,7 @@ components:
           readOnly: true
       required:
       - course
+      - course_code
       - course_name
       - created_at
       - id
@@ -12094,8 +12160,17 @@ components:
           readOnly: true
         learner:
           type: integer
+        learner_name:
+          type: string
+          readOnly: true
+        badge_no:
+          type: string
+          readOnly: true
         course:
           type: integer
+          readOnly: true
+        course_code:
+          type: string
           readOnly: true
         requested_session:
           type: integer
@@ -12110,6 +12185,14 @@ components:
           readOnly: true
           nullable: true
           description: First granted session before any carry-forward (SAD §8).
+        session_start:
+          type: string
+          format: date
+          readOnly: true
+        granted_start:
+          type: string
+          format: date
+          readOnly: true
         status:
           $ref: '#/components/schemas/EnrolmentStatusEnum'
         state:
@@ -12135,15 +12218,20 @@ components:
           format: date-time
           readOnly: true
       required:
+      - badge_no
       - booking_ref
       - course
+      - course_code
       - created_at
+      - granted_start
       - id
       - learner
+      - learner_name
       - original_session
       - payment_verified_at
       - seat_allocated_at
       - session
+      - session_start
       - state
     EnrolmentStatusEnum:
       enum:
@@ -12254,12 +12342,18 @@ components:
         corporate_account:
           type: integer
           nullable: true
+        corporate_account_name:
+          type: string
+          readOnly: true
         enrolment:
           type: integer
           nullable: true
         learner:
           type: integer
           nullable: true
+        learner_name:
+          type: string
+          readOnly: true
         issue_date:
           type: string
           format: date
@@ -12286,6 +12380,9 @@ components:
           type: string
           format: decimal
           pattern: ^-?\d{0,12}(?:\.\d{0,2})?$
+        balance:
+          type: string
+          readOnly: true
         status:
           $ref: '#/components/schemas/InvoiceStatusEnum'
         notes:
@@ -12296,9 +12393,12 @@ components:
             $ref: '#/components/schemas/InvoiceLine'
           readOnly: true
       required:
+      - balance
+      - corporate_account_name
       - id
       - invoice_no
       - issue_date
+      - learner_name
       - lines
     InvoiceCreate:
       type: object
@@ -12743,6 +12843,12 @@ components:
           readOnly: true
         learner:
           type: integer
+        learner_name:
+          type: string
+          readOnly: true
+        badge_no:
+          type: string
+          readOnly: true
         record_no:
           type: string
           maxLength: 64
@@ -12778,9 +12884,11 @@ components:
           format: date-time
           readOnly: true
       required:
+      - badge_no
       - created_at
       - id
       - learner
+      - learner_name
     Nationality:
       type: object
       properties:
@@ -14470,6 +14578,9 @@ components:
         course_name:
           type: string
           readOnly: true
+        course_code:
+          type: string
+          readOnly: true
         venue:
           type: integer
           nullable: true
@@ -14600,8 +14711,17 @@ components:
           readOnly: true
         learner:
           type: integer
+        learner_name:
+          type: string
+          readOnly: true
+        badge_no:
+          type: string
+          readOnly: true
         course:
           type: integer
+          readOnly: true
+        course_code:
+          type: string
           readOnly: true
         requested_session:
           type: integer
@@ -14616,6 +14736,14 @@ components:
           readOnly: true
           nullable: true
           description: First granted session before any carry-forward (SAD §8).
+        session_start:
+          type: string
+          format: date
+          readOnly: true
+        granted_start:
+          type: string
+          format: date
+          readOnly: true
         status:
           $ref: '#/components/schemas/EnrolmentStatusEnum'
         state:
@@ -14889,6 +15017,12 @@ components:
           readOnly: true
         learner:
           type: integer
+        learner_name:
+          type: string
+          readOnly: true
+        badge_no:
+          type: string
+          readOnly: true
         record_no:
           type: string
           maxLength: 64
@@ -15142,6 +15276,9 @@ components:
           readOnly: true
         invoice:
           type: integer
+          readOnly: true
+        invoice_no:
+          type: string
           readOnly: true
         payment_ref:
           type: string
@@ -15693,6 +15830,9 @@ components:
         invoice:
           type: integer
           readOnly: true
+        invoice_no:
+          type: string
+          readOnly: true
         payment_ref:
           type: string
           readOnly: true
@@ -15722,6 +15862,7 @@ components:
       - amount
       - id
       - invoice
+      - invoice_no
       - paid_at
       - payment_ref
       - received_by

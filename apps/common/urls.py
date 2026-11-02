@@ -6,6 +6,7 @@ from django.urls import path
 from apps.accounts.views import login, logout
 from apps.common.api import router
 from apps.integration.views import OutboxEventViewSet
+from apps.reporting.views import DashboardView, ReportExportView
 
 
 def health(_request):
@@ -36,6 +37,8 @@ urlpatterns = [
     path("health/", health, name="health"),
     path("auth/login", login, name="login"),
     path("auth/logout", logout, name="logout"),
+    path("dashboard/", DashboardView.as_view(), name="dashboard"),
+    path("reports/export/", ReportExportView.as_view(), name="report-export"),
     path(
         "integration/health/",
         OutboxEventViewSet.as_view({"get": "health"}),

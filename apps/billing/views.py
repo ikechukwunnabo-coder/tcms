@@ -35,6 +35,7 @@ class CorporateAccountViewSet(RoleScopedModelViewSet):
     serializer_class = CorporateAccountReadSerializer
     required_roles = ANY_ROLE
     write_roles = WRITE
+    search_fields = ["name", "company__name", "lead_email"]
 
     def get_serializer_class(self):
         if self.action in ("create", "update", "partial_update"):
@@ -71,6 +72,7 @@ class InvoiceViewSet(RoleScopedModelViewSet):
     required_roles = READ
     write_roles = WRITE
     filterset_fields = ["corporate_account", "enrolment", "learner", "status"]
+    search_fields = ["invoice_no", "learner__badge_no", "learner__surname"]
 
     def get_serializer_class(self):
         if self.action == "create":
@@ -119,6 +121,7 @@ class PaymentViewSet(RoleScopedModelViewSet):
     required_roles = READ
     write_roles = WRITE
     filterset_fields = ["invoice", "status"]
+    search_fields = ["payment_ref", "invoice__invoice_no"]
 
     def get_serializer_class(self):
         if self.action == "create":

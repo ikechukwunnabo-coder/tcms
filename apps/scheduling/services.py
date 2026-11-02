@@ -22,7 +22,7 @@ from django.db.models import F, Q, Sum
 from django.utils import timezone
 
 from apps.audit.services import write_audit
-from apps.common.enums import BookingState, EnrolmentStatus, SessionStatus
+from apps.common.enums import BookingState, EnrolmentStatus, SessionStatus, WorkflowStatusCode
 from apps.integration.services import publish_event
 from apps.scheduling.models import CourseSession, Enrolment
 
@@ -204,6 +204,49 @@ def _next_available_session(enrolment: Enrolment) -> CourseSession | None:
     return None
 
 
+def _ensure_training_record(enrolment: Enrolment, session: CourseSession, *, actor=None):
+    """Open the delivery/workflow record once a seat is granted (R-BK-02).
+
+    The record is the link between scheduling and the 14-stage approval chain.
+    Creation is skipped when the workflow has not been seeded yet, so the
+    booking transaction never fails on a partial development database.
+    """
+    from apps.delivery.models import TrainingRecord
+    from apps.workflow.models import WorkflowStatus
+
+    existing = TrainingRecord.objects.filter(enrolment=enrolment).first()
+    if existing is not None:
+        return existing
+
+    status = WorkflowStatus.objects.filter(
+        code=WorkflowStatusCode.NEW_RECORD.name.lower()
+    ).first()
+    if status is None:
+        return None
+
+    record = TrainingRecord.objects.create(
+        learner=enrolment.learner,
+        course=session.course,
+        session=session,
+        enrolment=enrolment,
+        start_date=session.start_date,
+        end_date=session.end_date or session.start_date,
+        status=status,
+    )
+    write_audit(
+        action="training_record.created",
+        entity="training_record",
+        entity_id=record.pk,
+        actor=actor,
+        after={"enrolment_id": enrolment.pk, "session_id": session.pk, "status": status.pk},
+    )
+    publish_event(
+        "training_record.created",
+        {"training_record_id": record.pk, "enrolment_id": enrolment.pk},
+    )
+    return record
+
+
 def _secure(
     enrolment: Enrolment, session: CourseSession, *, carry_forward: bool, now, actor=None
 ) -> Enrolment:
@@ -244,6 +287,8 @@ def _secure(
             "carry_forward": carry_forward,
         },
     )
+
+    _ensure_training_record(enrolment, session, actor=actor)
 
     # CJI: (re)issue for the granted session (spec §9.7, BR-20). Delivery never
     # raises, so a missing contact cannot roll back a confirmed seat. Lazy import

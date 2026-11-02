@@ -1,3 +1,4 @@
+from rest_framework import status
 from rest_framework.decorators import action
 from rest_framework.response import Response
 
@@ -59,6 +60,30 @@ class EnrolmentViewSet(RoleScopedModelViewSet):
     write_roles = ENROLMENT_WRITE
     filterset_fields = ["learner", "session", "requested_session", "status", "state"]
     search_fields = ["booking_ref", "learner__badge_no", "learner__surname"]
+
+    def create(self, request, *args, **kwargs):
+        """Create a booking request through the domain service (booking ref,
+        initial state, creator and overbooking checks)."""
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        session = serializer.validated_data.get("requested_session")
+        if session is None:
+            return Response(
+                {
+                    "error": "requested_session_required",
+                    "message": "Choose the session the learner is booking.",
+                },
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        enrolment = svc.book(
+            serializer.validated_data["learner"],
+            session,
+            created_by=request.user,
+        )
+        return Response(
+            self.get_serializer(enrolment).data,
+            status=status.HTTP_201_CREATED,
+        )
 
     @action(detail=True, methods=["post"])
     def confirm(self, request, pk=None):

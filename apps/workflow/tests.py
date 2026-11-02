@@ -69,6 +69,16 @@ class WorkflowEngineTests(TestCase):
         record.refresh_from_db()
         self.assertEqual(record.status_id, 1)
 
+    def test_advance_reenters_a_rejected_record(self):
+        record = self._record()
+        wf.advance(record, self.admin_user, action="reject", reason="bad docs")
+        record.refresh_from_db()
+        new_status = wf.advance(record, self.admin_user)
+        record.refresh_from_db()
+        self.assertEqual(new_status.id, 1)
+        self.assertEqual(record.status_id, 1)
+        self.assertEqual(record.reject_reason, "")
+
     def test_cancel_is_terminal_r_wf_04(self):
         record = self._record()
         wf.advance(record, self.admin_user, action="cancel", reason="duplicate")
