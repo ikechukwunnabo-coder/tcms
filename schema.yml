@@ -12524,6 +12524,7 @@ components:
         is_current:
           type: boolean
           readOnly: true
+          default: true
         delivery_status:
           allOf:
           - $ref: '#/components/schemas/DeliveryStatusEnum'

@@ -104,7 +104,7 @@ jobs:
     runs-on: ubuntu-latest
     env:
       DJANGO_SETTINGS_MODULE: config.settings.prod
-      SECRET_KEY: ci-deploy-check-only-not-a-real-production-secret
+      SECRET_KEY: ci-deploy-check-only-not-a-real-production-secret-0123456789-abcdefghij
       DEBUG: "false"
       USE_SQLITE: "true"
       ALLOWED_HOSTS: example.com
