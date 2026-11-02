@@ -13,3 +13,6 @@ db.sqlite3
 media
 staticfiles
 schema.yml
+frontend/node_modules
+frontend/dist
+frontend/*.tsbuildinfo

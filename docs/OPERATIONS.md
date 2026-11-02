@@ -6,6 +6,7 @@
 | --- | --- |
 | `GET /api/v1/health/` | `200` with `database` and `cache` both `ok`; `503` otherwise |
 | `GET /api/v1/integration/health/` | Outbox backlog/dispatch health (authenticated) |
+| `GET /` | Staff console static shell (`200`) |
 | `GET /admin/` | Django admin reachable (staff only) |
 
 Alert on: health `503`, sustained 5xx rate, Celery queue depth, outbox events in

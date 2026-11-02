@@ -76,9 +76,12 @@ docker compose -f docker-compose.prod.yml up -d
 ```
 
 The web container runs migrations on start (`RUN_MIGRATIONS=1`) and then serves
-Gunicorn on `127.0.0.1:8000`. Workers and beat are separate services. Do **not**
-run `seed_data`/`seed_demo` against production unless the business explicitly
-wants demo/reference data.
+Gunicorn on `127.0.0.1:8000`. The frontend container builds the Vite console and
+serves it with nginx on `127.0.0.1:8080`, proxying `/api/`, `/admin/`, `/portal/`,
+`/static/` and `/media/` to the web service. Point the TLS reverse proxy at the
+frontend container, not directly at Gunicorn. Workers and beat are separate
+services. Do **not** run `seed_data`/`seed_demo` against production unless the
+business explicitly wants demo/reference data.
 
 ### Bare metal / PaaS
 
@@ -94,6 +97,41 @@ celery -A config beat -l info
 
 Serve `staticfiles/` through WhiteNoise (already configured) or the reverse
 proxy. Uploaded media goes to S3/MinIO; local `media/` is only a fallback.
+
+### Staff console without Docker
+
+Build the Vite app and publish the static output:
+
+```bash
+cd frontend
+npm ci
+npm run build
+# copy frontend/dist/ to the web root exposed by the reverse proxy
+```
+
+The console calls the API on its own origin, so no API base URL is compiled in.
+Terminate TLS at the proxy and route `/api/`, `/admin/`, `/portal/`, `/static/`
+and `/media/` to Gunicorn while serving `frontend/dist/` at `/`. For client-side
+routes, fall back to `index.html`:
+
+```nginx
+root /srv/tcms-console;
+location / {
+    try_files $uri $uri/ /index.html;
+}
+location /api/ {
+    proxy_pass http://127.0.0.1:8000;
+    proxy_set_header Host $host;
+    proxy_set_header X-Forwarded-Proto $scheme;
+    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+}
+location /admin/ { proxy_pass http://127.0.0.1:8000; }
+location /portal/ { proxy_pass http://127.0.0.1:8000; }
+location /static/ { proxy_pass http://127.0.0.1:8000; }
+location /media/ { proxy_pass http://127.0.0.1:8000; }
+```
+
+Re-run `npm ci && npm run build` on every release; `dist/` is not committed.
 
 ## 4. Reverse proxy and TLS
 

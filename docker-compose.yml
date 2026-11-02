@@ -19,8 +19,8 @@
   EMAIL_PORT: "1025"
   EMAIL_USE_TLS: "false"
   DEFAULT_FROM_EMAIL: ${DEFAULT_FROM_EMAIL:-no-reply@tcms.local}
-  PORTAL_WEB_BASE_URL: ${PORTAL_WEB_BASE_URL:-http://localhost:8000}
-  PORTAL_VERIFY_URL: ${PORTAL_VERIFY_URL:-http://localhost:8000/portal/verify-email/}
+  PORTAL_WEB_BASE_URL: ${PORTAL_WEB_BASE_URL:-http://localhost:3000}
+  PORTAL_VERIFY_URL: ${PORTAL_VERIFY_URL:-http://localhost:3000/portal/verify-email/}
   OUTBOX_WEBHOOK_URLS: ${OUTBOX_WEBHOOK_URLS:-}
   WEBHOOK_SIGNING_SECRET: ${WEBHOOK_SIGNING_SECRET:-}
   USE_S3_STORAGE: ${USE_S3_STORAGE:-false}
@@ -55,6 +55,15 @@ services:
       timeout: 5s
       retries: 6
       start_period: 30s
+
+  frontend:
+    build: ./frontend
+    restart: unless-stopped
+    ports:
+      - "3000:80"
+    depends_on:
+      web:
+        condition: service_healthy
 
   worker:
     build: .

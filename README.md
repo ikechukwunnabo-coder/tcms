@@ -1,10 +1,12 @@
 # TCMS — Training Centre Management System
 
-Django + DRF backend for a maritime/HSE training centre: learner and corporate
-records, scheduling and seat allocation, medicals, delivery, certification,
-billing, payroll, reporting, notifications and a learner/employer portal.
+Django + DRF backend and React staff console for a maritime/HSE training centre:
+learner and corporate records, scheduling and seat allocation, medicals,
+delivery, certification, billing, payroll, reporting, notifications and a
+learner/employer portal.
 
 - Python 3.12+ (Django 6.1, DRF 3.18)
+- Node 20+ for the staff console (React 19, Vite 7, TypeScript)
 - PostgreSQL 16+ in production (SQLite for zero-setup development)
 - Celery + Redis for background work; S3/MinIO for document storage
 - ReportLab certificate rendering, DRF token auth, deny-by-default RBAC
@@ -25,8 +27,17 @@ python manage.py seed_data
 python manage.py runserver
 ```
 
-`seed_roles` prints the generated System Admin password once. The API is served
-under `/api/v1/`; Swagger is at `/api/schema/swagger-ui/` while `DEBUG=true` or
+In a second terminal start the staff console:
+
+```bash
+cd frontend
+npm install
+npm run dev
+```
+
+Open `http://localhost:5173` and sign in with the System Admin credentials.
+`seed_roles` prints the generated password once. The API is served under
+`/api/v1/`; Swagger is at `/api/docs/` while `DEBUG=true` or
 `EXPOSE_API_DOCS=true`. The portal is at `/portal/`.
 
 ### Local PostgreSQL
@@ -60,6 +71,10 @@ database automatically.
 | Full verification | `scripts/verify.ps1` (Windows) / `scripts/verify.sh` |
 | Payroll config check | `python manage.py payroll_check` |
 | Production deploy check | `python manage.py check --deploy` |
+| Staff console dev server | `cd frontend && npm run dev` |
+| Staff console typecheck | `cd frontend && npm run typecheck` |
+| Staff console lint | `cd frontend && npm run lint` |
+| Staff console production build | `cd frontend && npm run build` |
 
 ## Configuration
 
@@ -84,16 +99,21 @@ deployment never fails to produce a certificate PDF. A PDF already stored at
 ## Docker
 
 `docker-compose.yml` is the self-contained local/staging stack (Postgres, Redis,
-MinIO, Mailpit, web, worker, beat). It uses `config.settings.prod`, so set a real
-`SECRET_KEY` in `.env` before starting.
+MinIO, Mailpit, web, worker, beat and the nginx-served staff console). It uses
+`config.settings.prod`, so set a real `SECRET_KEY` in `.env` before starting.
 
 ```bash
 docker compose up --build
 ```
 
+Open the staff console at `http://localhost:3000`; Django remains on
+`http://localhost:8000`.
+
 `docker-compose.prod.yml` is the production template. It expects external
-PostgreSQL, Redis, S3/MinIO and SMTP; only the web port is bound (to loopback)
-for a TLS-terminating reverse proxy. See [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md).
+PostgreSQL, Redis, S3/MinIO and SMTP; the frontend container binds
+`127.0.0.1:8080` for a TLS-terminating reverse proxy and proxies API, admin,
+portal, static and media routes to Gunicorn. See
+[docs/DEPLOYMENT.md](docs/DEPLOYMENT.md).
 
 ## Testing
 
@@ -109,10 +129,15 @@ for a TLS-terminating reverse proxy. See [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md
 ```
 apps/            Domain apps (accounts, learners, scheduling, certification, …)
 config/          Settings (base/dev/prod) and URL/Celery configuration
+frontend/        React/Vite staff operations console
 scripts/         Verification, smoke test and container entrypoint
 docs/            Deployment and operations runbooks
 schema.yml       Committed OpenAPI schema
 ```
+
+The console proxies `/api` and `/media` to Django during development. The
+production build in `frontend/dist/` is static and should be served by the same
+reverse proxy that fronts Django, so API calls stay same-origin.
 
 ## Operations and deployment
 

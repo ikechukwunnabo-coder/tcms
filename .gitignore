@@ -18,6 +18,11 @@ staticfiles/
 *.env
 !.env.example
 
+# Node / frontend
+node_modules/
+frontend/dist/
+*.tsbuildinfo
+
 # OS / editors
 .DS_Store
 .idea/
