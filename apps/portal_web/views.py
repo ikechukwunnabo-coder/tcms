@@ -7,6 +7,7 @@ services so the API and the web portal behave identically.
 from __future__ import annotations
 
 from datetime import date
+from io import BytesIO
 
 from django.conf import settings
 from django.contrib import messages
@@ -17,14 +18,17 @@ from django.contrib.auth.decorators import login_required
 from django.contrib.auth.hashers import make_password
 from django.contrib.auth.tokens import default_token_generator
 from django.core.mail import send_mail
-from django.http import HttpResponse
+from django.http import FileResponse, HttpResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse, reverse_lazy
 from django.utils.encoding import force_bytes, force_str
 from django.utils.http import urlsafe_base64_decode, urlsafe_base64_encode
+from django.utils.text import get_valid_filename
 from django.views.decorators.http import require_http_methods, require_POST
 
 from apps.audit.services import write_audit
+from apps.certification import services as cert_service
+from apps.certification.exceptions import CertificateDocumentMissing
 from apps.certification.models import Certificate
 from apps.common.net import client_ip
 from apps.learners.services import AgeError
@@ -427,6 +431,36 @@ def _certificate_state(cert, today) -> str:
     if days_left <= 90:
         return "expiring"
     return "valid"
+
+
+@login_required(login_url=LOGIN_URL)
+def certificate_download(request, pk):
+    """Download a learner/ nominee certificate PDF (authenticated portal access)."""
+    certificate = get_object_or_404(Certificate, pk=pk)
+    _, learners = _portal_learners(request.user)
+    if not any(learner.pk == certificate.learner_id for learner in learners):
+        return render(
+            request,
+            "portal/error.html",
+            {"message": "You do not have access to this certificate."},
+            status=403,
+        )
+    try:
+        data = cert_service.certificate_document_bytes(certificate, actor=request.user)
+    except CertificateDocumentMissing:
+        return render(
+            request,
+            "portal/error.html",
+            {"message": "This certificate PDF has not been uploaded yet."},
+            status=404,
+        )
+    filename = get_valid_filename(f"{certificate.certificate_no}.pdf") or "certificate.pdf"
+    return FileResponse(
+        BytesIO(data),
+        content_type="application/pdf",
+        as_attachment=True,
+        filename=filename,
+    )
 
 
 @login_required(login_url=LOGIN_URL)

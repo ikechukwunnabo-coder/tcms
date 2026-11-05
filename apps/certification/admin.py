@@ -9,6 +9,7 @@ class CertificateAdmin(admin.ModelAdmin):
         "certificate_no",
         "learner",
         "format",
+        "source",
         "issued_at",
         "expiry_date",
         "released_at",

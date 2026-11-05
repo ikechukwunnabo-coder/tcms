@@ -125,6 +125,7 @@
               <th scope="col">Issued</th>
               <th scope="col">Expires</th>
               <th scope="col">Status</th>
+              <th scope="col"><span class="visually-hidden">Actions</span></th>
             </tr>
           </thead>
           <tbody>
@@ -139,6 +140,11 @@
                   {% endif %}
                 </td>
                 <td><span class="pill pill-{{ row.state }}">{{ row.state|capfirst }}</span></td>
+                <td class="actions">
+                  {% if not row.cert.voided_at %}
+                    <a class="btn btn-outline btn-sm" href="{% url 'portal_web:certificate-download' row.cert.pk %}">Download</a>
+                  {% endif %}
+                </td>
               </tr>
             {% endfor %}
           </tbody>

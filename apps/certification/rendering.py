@@ -8,6 +8,7 @@ supply its own artwork without code changes.
 from __future__ import annotations
 
 import io
+import textwrap
 
 from django.conf import settings
 from django.core.files.storage import default_storage
@@ -120,6 +121,206 @@ def render_certificate(certificate) -> bytes:
     page.showPage()
     page.save()
     return buf.getvalue()
+
+
+CARD_WIDTH = 8.56 * cm
+CARD_HEIGHT = 5.4 * cm
+
+
+def id_card_pdf_bytes(id_card) -> bytes:
+    """Return the PDF bytes for ``id_card`` (stored artefact or rendered)."""
+    if id_card.object_key:
+        try:
+            with default_storage.open(id_card.object_key, "rb") as fh:
+                return fh.read()
+        except (FileNotFoundError, OSError):
+            pass
+    return render_id_card(id_card)
+
+
+def render_id_card(id_card) -> bytes:
+    """Render a two-page (front/back) staff ID card as PDF bytes."""
+    buf = io.BytesIO()
+    page = canvas.Canvas(buf, pagesize=(CARD_WIDTH, CARD_HEIGHT))
+    page.setTitle(f"ID card {id_card.card_no}")
+    _id_card_front(page, id_card)
+    page.showPage()
+    _id_card_back(page, id_card)
+    page.showPage()
+    page.save()
+    return buf.getvalue()
+
+
+def _id_card_front(page: canvas.Canvas, id_card) -> None:
+    page.setFillColor(NAVY)
+    page.rect(0, 0, CARD_WIDTH, CARD_HEIGHT, stroke=0, fill=1)
+    page.setStrokeColor(GOLD)
+    page.setLineWidth(2)
+    page.rect(0.25 * cm, 0.25 * cm, CARD_WIDTH - 0.5 * cm, CARD_HEIGHT - 0.5 * cm)
+
+    org = _text(getattr(settings, "CERTIFICATE_ORG_NAME", "Training Centre"))
+    page.setFillColor(white)
+    page.setFont("Helvetica-Bold", 7)
+    page.drawString(0.55 * cm, CARD_HEIGHT - 0.55 * cm, org[:42])
+
+    photo_w = 2.35 * cm
+    photo_h = 2.9 * cm
+    photo_x = 0.55 * cm
+    photo_y = 0.55 * cm
+    image = _learner_photo(id_card.learner)
+    if image is not None:
+        page.drawImage(
+            image,
+            photo_x,
+            photo_y,
+            width=photo_w,
+            height=photo_h,
+            preserveAspectRatio=True,
+            anchor="c",
+            mask="auto",
+        )
+    else:
+        page.setFillColor(GOLD)
+        page.circle(photo_x + photo_w / 2, photo_y + photo_h / 2, 0.8 * cm)
+        page.setFillColor(NAVY)
+        page.setFont("Helvetica-Bold", 13)
+        page.drawCentredString(
+            photo_x + photo_w / 2,
+            photo_y + photo_h / 2 - 4,
+            _initials(id_card.learner)[:2],
+        )
+
+    text_x = photo_x + photo_w + 0.45 * cm
+    text_w = CARD_WIDTH - text_x - 0.55 * cm
+    y = CARD_HEIGHT - 1.3 * cm
+    learner = id_card.learner
+    name = learner.full_name or learner.badge_no
+    page.setFillColor(white)
+    page.setFont("Helvetica-Bold", _fit_size(page, name, "Helvetica-Bold", 11, 7, text_w))
+    page.drawString(text_x, y, _text(name))
+
+    y -= 0.5 * cm
+    page.setFillColor(GOLD)
+    page.setFont("Helvetica-Bold", 6.5)
+    page.drawString(text_x, y, f"BADGE {learner.badge_no}")
+
+    course = id_card.training_record.course if id_card.training_record_id else None
+    y -= 0.45 * cm
+    page.setFillColor(white)
+    page.setFont("Helvetica-Bold", 7)
+    if course is not None:
+        page.drawString(text_x, y, _text(course.course_code))
+        y -= 0.35 * cm
+        page.setFont("Helvetica", 6.5)
+        _draw_wrapped(
+            page,
+            course.front_id_text or course.name,
+            text_x,
+            y,
+            text_w,
+            max_height=0.85 * cm,
+            size=6.2,
+            leading=7,
+        )
+    else:
+        page.setFont("Helvetica", 6.5)
+        _draw_wrapped(
+            page,
+            "Training record pending",
+            text_x,
+            y,
+            text_w,
+            max_height=0.85 * cm,
+            size=6.2,
+            leading=7,
+        )
+
+    page.setFillColor(white)
+    page.setFont("Helvetica", 5.8)
+    details = [f"ID {id_card.card_no}"]
+    if id_card.training_record_id and id_card.training_record.start_date:
+        details.append(f"Issued {id_card.training_record.start_date:%d %b %Y}")
+    if id_card.training_record_id:
+        cert = id_card.training_record.certificates.order_by("-issued_at").first()
+        if cert and cert.expiry_date:
+            details.append(f"Expires {cert.expiry_date:%d %b %Y}")
+    page.drawString(0.55 * cm, 0.32 * cm, _text("  |  ".join(details)))
+
+
+def _id_card_back(page: canvas.Canvas, id_card) -> None:
+    page.setFillColor(white)
+    page.rect(0, 0, CARD_WIDTH, CARD_HEIGHT, stroke=0, fill=1)
+    page.setStrokeColor(NAVY)
+    page.setLineWidth(2)
+    page.rect(0.25 * cm, 0.25 * cm, CARD_WIDTH - 0.5 * cm, CARD_HEIGHT - 0.5 * cm)
+
+    course = id_card.training_record.course if id_card.training_record_id else None
+    body = course.back_id_text if course is not None else ""
+    if not body:
+        body = (
+            "This card remains the property of the training centre. "
+            "If found, please return it to the address below."
+        )
+    page.setFillColor(INK)
+    page.setFont("Helvetica", 6.2)
+    _draw_wrapped(
+        page,
+        body,
+        0.65 * cm,
+        CARD_HEIGHT - 0.65 * cm,
+        CARD_WIDTH - 1.3 * cm,
+        max_height=3.5 * cm,
+        size=6.2,
+        leading=7.2,
+    )
+
+    page.setStrokeColor(GOLD)
+    page.setLineWidth(0.8)
+    page.line(0.65 * cm, 1.25 * cm, CARD_WIDTH - 0.65 * cm, 1.25 * cm)
+    page.setFillColor(MUTED)
+    page.setFont("Helvetica", 5.5)
+    address = _text(getattr(settings, "CERTIFICATE_ORG_ADDRESS", ""))
+    if address:
+        page.drawString(0.65 * cm, 1.02 * cm, address[:95])
+    verify = getattr(settings, "CERTIFICATE_VERIFY_URL", "")
+    if verify:
+        page.drawString(0.65 * cm, 0.82 * cm, f"Verify: {verify}")
+    page.drawRightString(CARD_WIDTH - 0.65 * cm, 0.55 * cm, _text(id_card.card_no))
+
+
+def _draw_wrapped(
+    page: canvas.Canvas,
+    value: str,
+    x: float,
+    y: float,
+    width: float,
+    *,
+    max_height: float,
+    size: float,
+    leading: float,
+) -> float:
+    chars = max(8, int(width / (size * 0.52)))
+    lines = []
+    for block in _text(value).splitlines() or [""]:
+        lines.extend(textwrap.wrap(block, width=chars) or [""])
+    bottom = y - max_height
+    for line in lines:
+        if y < bottom:
+            break
+        page.drawString(x, y, line)
+        y -= leading
+    return y
+
+
+def _learner_photo(learner):
+    document = learner.documents.filter(kind="photo").order_by("-uploaded_at").first()
+    if document is None or not document.object_key:
+        return None
+    return _open_image(document.object_key)
+
+
+def _initials(learner) -> str:
+    return "".join(part[0].upper() for part in (learner.surname, learner.first_name) if part)
 
 
 def _border(page: canvas.Canvas, width: float, height: float) -> None:

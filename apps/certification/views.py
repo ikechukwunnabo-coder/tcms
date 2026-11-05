@@ -1,4 +1,8 @@
+from io import BytesIO
+
+from django.http import FileResponse, HttpResponse
 from django.shortcuts import get_object_or_404
+from django.utils.text import get_valid_filename
 from rest_framework.decorators import action
 from rest_framework.response import Response
 
@@ -23,6 +27,22 @@ MD = (RoleCode.SYSTEM_ADMIN, RoleCode.MD)
 ADMIN = (RoleCode.SYSTEM_ADMIN, RoleCode.ADMIN)
 
 
+def _pdf_response(data: bytes, filename: str, *, head: bool = False):
+    safe = get_valid_filename(filename) or "document.pdf"
+    headers = {
+        "Content-Disposition": f'attachment; filename="{safe}"',
+        "Content-Length": str(len(data)),
+    }
+    if head:
+        return HttpResponse(headers=headers, content_type="application/pdf")
+    return FileResponse(
+        BytesIO(data),
+        content_type="application/pdf",
+        as_attachment=True,
+        filename=safe,
+    )
+
+
 class CertificateViewSet(RoleScopedReadOnlyModelViewSet):
     queryset = Certificate.objects.select_related("learner").order_by("-issued_at")
     serializer_class = s.CertificateSerializer
@@ -37,8 +57,53 @@ class CertificateViewSet(RoleScopedReadOnlyModelViewSet):
         payload = s.IssueCertificateSerializer(data=request.data)
         payload.is_valid(raise_exception=True)
         record = get_object_or_404(TrainingRecord, pk=payload.validated_data["training_record"])
-        certificate = cert_service.issue_certificate(record, actor=request.user)
+        certificate = cert_service.issue_certificate(
+            record,
+            actor=request.user,
+            certificate_no=payload.validated_data.get("certificate_no", ""),
+            opito_learner_id=payload.validated_data.get("opito_learner_id", ""),
+        )
         return Response(s.CertificateSerializer(certificate).data, status=201)
+
+    @action(detail=True, methods=["get", "head"])
+    def document(self, request, pk=None):
+        """Return the generated or uploaded certificate PDF."""
+        certificate = self.get_object()
+        data = cert_service.certificate_document_bytes(certificate, actor=request.user)
+        return _pdf_response(
+            data,
+            f"{certificate.certificate_no}.pdf",
+            head=request.method == "HEAD",
+        )
+
+    @action(detail=True, methods=["post"])
+    def generate(self, request, pk=None):
+        certificate = self.get_object()
+        cert_service.generate_certificate_document(certificate, actor=request.user)
+        certificate.refresh_from_db()
+        return Response(s.CertificateSerializer(certificate).data)
+
+    @action(detail=True, methods=["post"])
+    def upload(self, request, pk=None):
+        certificate = self.get_object()
+        payload = s.CertificateUploadSerializer(data=request.data)
+        payload.is_valid(raise_exception=True)
+        cert_service.upload_certificate_document(
+            certificate,
+            payload.validated_data["file"],
+            actor=request.user,
+            certificate_no=payload.validated_data.get("certificate_no", ""),
+            opito_learner_id=payload.validated_data.get("opito_learner_id", ""),
+        )
+        certificate.refresh_from_db()
+        return Response(s.CertificateSerializer(certificate).data)
+
+    @action(detail=True, methods=["post"])
+    def print(self, request, pk=None):
+        certificate = self.get_object()
+        cert_service.mark_certificate_printed(certificate, actor=request.user)
+        certificate.refresh_from_db()
+        return Response(s.CertificateSerializer(certificate).data)
 
     @action(detail=True, methods=["post"], url_path="md-approve")
     def md_approve(self, request, pk=None):
@@ -104,9 +169,44 @@ class CertificateSequenceViewSet(RoleScopedModelViewSet):
 
 
 class IDCardViewSet(RoleScopedModelViewSet):
-    queryset = IDCard.objects.all().order_by("-printed_at")
+    queryset = IDCard.objects.select_related("learner", "training_record").order_by("-printed_at")
     serializer_class = s.IDCardSerializer
     required_roles = READ
     write_roles = WRITE
     filterset_fields = ["learner", "training_record"]
     search_fields = ["card_no", "learner__badge_no"]
+
+    @action(detail=False, methods=["post"], url_path="issue")
+    def issue(self, request):
+        payload = s.IssueIdCardSerializer(data=request.data)
+        payload.is_valid(raise_exception=True)
+        record = get_object_or_404(TrainingRecord, pk=payload.validated_data["training_record"])
+        card = cert_service.issue_id_card(record, actor=request.user)
+        return Response(s.IDCardSerializer(card).data, status=201)
+
+    @action(detail=True, methods=["get", "head"])
+    def document(self, request, pk=None):
+        card = self.get_object()
+        data = cert_service.id_card_document_bytes(card, actor=request.user)
+        return _pdf_response(data, f"{card.card_no}.pdf", head=request.method == "HEAD")
+
+    @action(detail=True, methods=["post"])
+    def generate(self, request, pk=None):
+        card = self.get_object()
+        cert_service.generate_id_card_document(card, actor=request.user)
+        card.refresh_from_db()
+        return Response(s.IDCardSerializer(card).data)
+
+    @action(detail=True, methods=["post"])
+    def print(self, request, pk=None):
+        card = self.get_object()
+        cert_service.mark_id_card_printed(card, actor=request.user)
+        card.refresh_from_db()
+        return Response(s.IDCardSerializer(card).data)
+
+    @action(detail=True, methods=["post"])
+    def reprint(self, request, pk=None):
+        card = self.get_object()
+        cert_service.generate_id_card_document(card, actor=request.user)
+        card.refresh_from_db()
+        return Response(s.IDCardSerializer(card).data)

@@ -1,6 +1,6 @@
 from django.db import models
 
-from apps.common.enums import CertificateTypeCode
+from apps.common.enums import CertificateTypeCode, ExpiryTypeCode
 from apps.common.models import TimeStampedModel
 
 
@@ -28,12 +28,16 @@ class Course(TimeStampedModel):
         related_name="courses",
         default=CertificateTypeCode.STANDARD,
     )
-    expiry_type = models.SmallIntegerField(default=1)
+    expiry_type = models.SmallIntegerField(
+        choices=ExpiryTypeCode.choices, default=ExpiryTypeCode.CALCULATED
+    )
     duration_days = models.IntegerField(null=True, blank=True)
     validity_years = models.IntegerField(null=True, blank=True)
     id_card = models.BooleanField(default=False)
     foet_required = models.BooleanField(default=False)
     opito_reg_code = models.CharField(max_length=64, blank=True, default="")
+    front_id_text = models.TextField(blank=True, default="")
+    back_id_text = models.TextField(blank=True, default="")
     refresher_course = models.ForeignKey(
         "self", null=True, blank=True, on_delete=models.SET_NULL, related_name="refreshers"
     )

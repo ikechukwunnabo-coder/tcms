@@ -45,6 +45,7 @@ export const SCHEDULE_WRITE: RoleCode[] = ["system_admin", "admin", "training_co
 export const ENROLMENT_WRITE: RoleCode[] = [...SCHEDULE_WRITE, "accounts"];
 export const CERTIFICATE_READ = LEARNER_ROLES;
 export const CERTIFICATE_ISSUE: RoleCode[] = ["system_admin", "admin", "printer"];
+export const CERTIFICATE_PRINT: RoleCode[] = ["system_admin", "printer"];
 export const CERTIFICATE_MD: RoleCode[] = ["system_admin", "md"];
 export const CERTIFICATE_RELEASE: RoleCode[] = ["system_admin", "admin"];
 export const BILLING_ROLES: RoleCode[] = ["system_admin", "admin", "accounts"];

@@ -25,6 +25,9 @@ const EnrolmentsPage = lazy(() =>
 const CertificatesPage = lazy(() =>
   import("./pages/CertificatesPage").then((module) => ({ default: module.CertificatesPage })),
 );
+const CoursesPage = lazy(() =>
+  import("./pages/CoursesPage").then((module) => ({ default: module.CoursesPage })),
+);
 const BillingPage = lazy(() =>
   import("./pages/BillingPage").then((module) => ({ default: module.BillingPage })),
 );
@@ -100,6 +103,14 @@ export function App() {
           element={
             <Guard roles={["admin", "front_desk", "training_coordinator", "accounts", "due_diligence", "printer"]}>
               <LearnersPage />
+            </Guard>
+          }
+        />
+        <Route
+          path="courses"
+          element={
+            <Guard roles={["system_admin"]}>
+              <CoursesPage />
             </Guard>
           }
         />

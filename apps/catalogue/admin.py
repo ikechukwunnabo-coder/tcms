@@ -10,8 +10,16 @@ class CourseModuleItemInline(admin.TabularInline):
 
 @admin.register(Course)
 class CourseAdmin(admin.ModelAdmin):
-    list_display = ("course_code", "name", "cert_type", "validity_years", "id_card", "active")
-    list_filter = ("active", "cert_type", "id_card")
+    list_display = (
+        "course_code",
+        "name",
+        "cert_type",
+        "expiry_type",
+        "validity_years",
+        "id_card",
+        "active",
+    )
+    list_filter = ("active", "cert_type", "expiry_type", "id_card")
     search_fields = ("course_code", "name", "opito_reg_code")
     inlines = (CourseModuleItemInline,)
 

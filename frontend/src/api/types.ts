@@ -132,8 +132,15 @@ export interface Course {
   id_card: boolean;
   foet_required: boolean;
   opito_reg_code: string;
+  front_id_text: string;
+  back_id_text: string;
   refresher_course: string | null;
   active: boolean;
+}
+
+export interface CertificateType {
+  id: number;
+  name: string;
 }
 
 export interface Venue {
@@ -237,8 +244,11 @@ export interface Certificate {
   learner_name: string;
   badge_no: string;
   course_code: string;
+  course_id_card: boolean;
   certificate_no: string;
   format: number | null;
+  source: "generated" | "uploaded";
+  opito_learner_id: string;
   issued_at: string | null;
   issued_by: number | null;
   printed_at: string | null;
@@ -258,6 +268,18 @@ export interface Certificate {
   released_at: string | null;
   renewed_by_certificate: number | null;
   batch: number | null;
+}
+
+export interface IDCard {
+  id: number;
+  learner: number;
+  learner_name: string;
+  training_record: number;
+  course_code: string;
+  card_no: string;
+  printed_at: string | null;
+  printed_by: number | null;
+  object_key: string;
 }
 
 export type InvoiceStatus = "draft" | "issued" | "part_paid" | "paid" | "void";

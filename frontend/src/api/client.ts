@@ -90,11 +90,12 @@ export async function request<T>(
 ): Promise<T> {
   const { params, headers, ...rest } = options;
   const session = sessionStore.load();
+  const isForm = rest.body instanceof FormData;
   const response = await fetch(url(path, params), {
     ...rest,
     headers: {
       Accept: "application/json",
-      ...(rest.body ? { "Content-Type": "application/json" } : {}),
+      ...(rest.body && !isForm ? { "Content-Type": "application/json" } : {}),
       ...(session ? { Authorization: `Token ${session.token}` } : {}),
       ...headers,
     },
@@ -147,6 +148,23 @@ export async function downloadCsv(dataset: string, params?: Query) {
   const anchor = document.createElement("a");
   anchor.href = href;
   anchor.download = name;
+  document.body.appendChild(anchor);
+  anchor.click();
+  anchor.remove();
+  URL.revokeObjectURL(href);
+}
+
+export async function downloadFile(path: string, filename: string) {
+  const session = sessionStore.load();
+  const response = await fetch(url(path), {
+    headers: session ? { Authorization: `Token ${session.token}` } : {},
+  });
+  if (!response.ok) throw await parseError(response);
+  const blob = await response.blob();
+  const href = URL.createObjectURL(blob);
+  const anchor = document.createElement("a");
+  anchor.href = href;
+  anchor.download = filename;
   document.body.appendChild(anchor);
   anchor.click();
   anchor.remove();

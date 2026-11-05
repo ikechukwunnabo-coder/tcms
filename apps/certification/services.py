@@ -12,11 +12,16 @@ from django.core.files.storage import default_storage
 from django.core.mail import EmailMessage, send_mail
 from django.db import transaction
 from django.utils import timezone
+from django.utils.text import get_valid_filename
 
 from apps.audit.services import write_audit
 from apps.certification.exceptions import (
     BatchDeliveryError,
     CannotRenewCertificate,
+    CertificateDocumentError,
+    CertificateDocumentMissing,
+    IdCardNotRequired,
+    InvalidCertificateDocument,
     NoReleasedCertificates,
     NoReminderRecipient,
 )
@@ -25,15 +30,29 @@ from apps.certification.models import (
     CertificateBatch,
     CertificateReminder,
     CertificateSequence,
+    IDCard,
 )
-from apps.certification.rendering import certificate_pdf_bytes
-from apps.common.enums import CertificateBatchStatus, CertificateReminderStatus
+from apps.certification.rendering import (
+    certificate_pdf_bytes,
+    render_certificate,
+    render_id_card,
+)
+from apps.common.enums import (
+    CertificateBatchStatus,
+    CertificateReminderStatus,
+    CertificateSource,
+    CertificateTypeCode,
+    ExpiryTypeCode,
+    WorkflowStatusCode,
+)
 from apps.delivery.models import TrainingRecord
 from apps.delivery.services import assert_renewal_allowed, compute_expiry
+from apps.documents import services as doc_service
 from apps.integration.services import publish_event
 from apps.learners.services import assert_min_age
 from apps.medicals.services import assert_medical_valid
 from apps.scheduling import services as scheduling_services
+from apps.workflow import services as workflow_services
 from apps.workflow.models import WorkflowStatus
 
 
@@ -60,8 +79,34 @@ def allocate_certificate_number(*, course_year: int, item_id: int, birth_date: d
     return f"T{course_year % 100:02d}{seq.last_number}{b}"
 
 
+def compute_certificate_expiry(
+    training_record: TrainingRecord, on_date: date | None = None
+) -> date | None:
+    """Apply the course expiry rule, including FOET previous-expiry rollover."""
+    course = training_record.course
+    if course.expiry_type == ExpiryTypeCode.NONE:
+        return None
+    if course.expiry_type == ExpiryTypeCode.FOET and training_record.prev_expiry is not None:
+        return compute_expiry(
+            training_record.prev_expiry + timedelta(days=1), course.validity_years
+        )
+    return compute_expiry(training_record.start_date, course.validity_years)
+
+
+def _interim_certificate_no(training_record: TrainingRecord, on_date: date) -> str:
+    """OPITO certificates arrive with an external number; keep issuance unique."""
+    return f"OPITO-{on_date.year}-{training_record.pk:06d}"
+
+
 @transaction.atomic
-def issue_certificate(training_record, *, actor=None, on_date: date | None = None) -> Certificate:
+def issue_certificate(
+    training_record,
+    *,
+    actor=None,
+    on_date: date | None = None,
+    certificate_no: str | None = None,
+    opito_learner_id: str = "",
+) -> Certificate:
     """Create a certificate for an approved record, enforcing age + medical gates."""
     on_date = on_date or date.today()
     learner = training_record.learner
@@ -69,18 +114,33 @@ def issue_certificate(training_record, *, actor=None, on_date: date | None = Non
     assert_medical_valid(learner, on_date)  # R-CERT-04
 
     course = training_record.course
-    number = allocate_certificate_number(
-        course_year=on_date.year, item_id=course.pk, birth_date=learner.birth_date
-    )
+    is_opito = course.cert_type_id == CertificateTypeCode.OPITO
+    number = (certificate_no or "").strip()
+    if not number:
+        number = (
+            _interim_certificate_no(training_record, on_date)
+            if is_opito
+            else allocate_certificate_number(
+                course_year=on_date.year,
+                item_id=course.pk,
+                birth_date=learner.birth_date,
+            )
+        )
+    if Certificate.objects.filter(certificate_no=number).exists():
+        raise InvalidCertificateDocument(
+            {"certificate_no": "A certificate with this number already exists."}
+        )
     actor = actor if getattr(actor, "is_authenticated", False) else None
     cert = Certificate.objects.create(
         training_record=training_record,
         learner=learner,
         certificate_no=number,
         format_id=course.cert_type_id or 1,
+        source=CertificateSource.GENERATED,
+        opito_learner_id=opito_learner_id.strip(),
         issued_at=timezone.now(),
         issued_by=actor,
-        expiry_date=compute_expiry(training_record.start_date, course.validity_years),
+        expiry_date=compute_certificate_expiry(training_record, on_date),
     )
 
     # R-REN-05 / spec §9.9: link the superseded certificate so its pending
@@ -116,6 +176,259 @@ def apply_signature_and_seal(certificate: Certificate, *, actor=None) -> Certifi
 
 # ── Expiry validity, reminders & renewal suppression (spec §9.9, BR-21) ──────
 
+
+
+def _safe_file_stem(value: str, fallback: str) -> str:
+    return get_valid_filename(value) or fallback
+
+
+def _certificate_file_key(certificate: Certificate) -> str:
+    year = certificate.issued_at.year if certificate.issued_at else timezone.now().year
+    stem = _safe_file_stem(certificate.certificate_no, f"certificate-{certificate.pk}")
+    return f"certificates/{year}/{stem}.pdf"
+
+
+def _id_card_file_key(id_card: IDCard) -> str:
+    year = timezone.now().year
+    if id_card.training_record_id and id_card.training_record.start_date:
+        year = id_card.training_record.start_date.year
+    stem = _safe_file_stem(id_card.card_no, f"id-card-{id_card.pk}")
+    return f"id_cards/{year}/{stem}.pdf"
+
+
+def _store_certificate_pdf(
+    certificate: Certificate,
+    data: bytes,
+    *,
+    actor=None,
+    source: str = CertificateSource.GENERATED,
+) -> Certificate:
+    document = doc_service.store_bytes(
+        kind="certificate",
+        owner_type="certificate",
+        owner_id=certificate.pk,
+        key=_certificate_file_key(certificate),
+        data=data,
+        mime="application/pdf",
+        actor=actor,
+    )
+    certificate.object_key = document.object_key
+    certificate.source = source
+    certificate.save(update_fields=["object_key", "source"])
+    action = (
+        "certificate.document_uploaded"
+        if source == CertificateSource.UPLOADED
+        else "certificate.document_generated"
+    )
+    write_audit(
+        action=action,
+        entity="certificate",
+        entity_id=certificate.pk,
+        actor=actor,
+        after={"object_key": certificate.object_key, "source": source},
+    )
+    return certificate
+
+
+def _store_id_card_pdf(id_card: IDCard, data: bytes, *, actor=None) -> IDCard:
+    document = doc_service.store_bytes(
+        kind="id_card",
+        owner_type="id_card",
+        owner_id=id_card.pk,
+        key=_id_card_file_key(id_card),
+        data=data,
+        mime="application/pdf",
+        actor=actor,
+    )
+    id_card.object_key = document.object_key
+    id_card.save(update_fields=["object_key"])
+    write_audit(
+        action="id_card.document_generated",
+        entity="id_card",
+        entity_id=id_card.pk,
+        actor=actor,
+        after={"object_key": id_card.object_key},
+    )
+    return id_card
+
+
+def certificate_document_bytes(certificate: Certificate, *, actor=None) -> bytes:
+    """Return the stored certificate PDF, lazily rendering non-OPITO records."""
+    if certificate.object_key:
+        try:
+            return doc_service.read_bytes(certificate.object_key)
+        except (FileNotFoundError, OSError):
+            pass
+    if certificate.format_id == CertificateTypeCode.OPITO:
+        raise CertificateDocumentMissing("Upload the OPITO certificate PDF first.")
+    data = render_certificate(certificate)
+    _store_certificate_pdf(certificate, data, actor=actor)
+    return data
+
+
+def generate_certificate_document(certificate: Certificate, *, actor=None) -> Certificate:
+    """Render and persist a generated certificate. OPITO must use upload."""
+    if certificate.format_id == CertificateTypeCode.OPITO:
+        raise InvalidCertificateDocument(
+            {"file": "OPITO certificates must be uploaded, not generated."}
+        )
+    data = render_certificate(certificate)
+    return _store_certificate_pdf(
+        certificate,
+        data,
+        actor=actor,
+        source=CertificateSource.GENERATED,
+    )
+
+
+def _read_pdf_upload(upload) -> bytes:
+    limit = int(getattr(settings, "CERTIFICATE_UPLOAD_MAX_BYTES", 10 * 1024 * 1024))
+    if upload.size > limit:
+        raise InvalidCertificateDocument({"file": f"PDF must be {limit} bytes or smaller."})
+    name = (upload.name or "").lower()
+    mime = (getattr(upload, "content_type", "") or "").lower()
+    if not name.endswith(".pdf") or mime not in ("application/pdf", "application/x-pdf"):
+        raise InvalidCertificateDocument({"file": "A PDF file is required."})
+    data = upload.read()
+    if not data.startswith(b"%PDF-"):
+        raise InvalidCertificateDocument({"file": "The uploaded file is not a PDF."})
+    return data
+
+
+def upload_certificate_document(
+    certificate: Certificate,
+    upload,
+    *,
+    actor=None,
+    certificate_no: str = "",
+    opito_learner_id: str = "",
+) -> Certificate:
+    """Store an externally issued PDF and update OPITO identifiers."""
+    data = _read_pdf_upload(upload)
+    number = (certificate_no or "").strip()
+    if number and number != certificate.certificate_no:
+        if Certificate.objects.filter(certificate_no=number).exclude(pk=certificate.pk).exists():
+            raise InvalidCertificateDocument(
+                {"certificate_no": "A certificate with this number already exists."}
+            )
+        certificate.certificate_no = number
+    learner_id = (opito_learner_id or "").strip()
+    if learner_id:
+        certificate.opito_learner_id = learner_id
+    certificate.save(update_fields=["certificate_no", "opito_learner_id"])
+    return _store_certificate_pdf(
+        certificate,
+        data,
+        actor=actor,
+        source=CertificateSource.UPLOADED,
+    )
+
+
+@transaction.atomic
+def mark_certificate_printed(certificate: Certificate, *, actor=None) -> Certificate:
+    """Stamp the certificate and move the workflow to the ID-card stage."""
+    record = certificate.training_record
+    if record.status_id < WorkflowStatusCode.MD_DONE:
+        raise CertificateDocumentError("MD approval is required before printing.")
+    actor = actor if getattr(actor, "is_authenticated", False) else None
+    certificate.printed_at = timezone.now()
+    certificate.printed_by = actor
+    certificate.save(update_fields=["printed_at", "printed_by"])
+
+    if record.status_id == WorkflowStatusCode.MD_DONE:
+        workflow_services.advance(record, actor)
+    if (
+        record.status_id == WorkflowStatusCode.CERTIFICATE_DONE
+        and not record.course.id_card
+    ):
+        workflow_services.advance(record, actor)
+        workflow_services.advance(record, actor)
+    write_audit(
+        action="certificate.print",
+        entity="certificate",
+        entity_id=certificate.pk,
+        actor=actor,
+    )
+    return certificate
+
+
+def issue_id_card(
+    training_record: TrainingRecord, *, actor=None, on_date: date | None = None
+) -> IDCard:
+    """Create the ID card record for a course that requires one."""
+    if not training_record.course.id_card:
+        raise IdCardNotRequired("This course does not issue an ID card.")
+    existing = IDCard.objects.filter(training_record=training_record).first()
+    if existing is not None:
+        return existing
+    on_date = on_date or date.today()
+    card_no = f"ID{_yy(on_date)}{training_record.pk:06d}"
+    actor = actor if getattr(actor, "is_authenticated", False) else None
+    card = IDCard.objects.create(
+        training_record=training_record,
+        learner=training_record.learner,
+        card_no=card_no,
+    )
+    write_audit(
+        action="id_card.issue",
+        entity="id_card",
+        entity_id=card.pk,
+        actor=actor,
+        after={"card_no": card_no},
+    )
+    return card
+
+
+def id_card_document_bytes(id_card: IDCard, *, actor=None) -> bytes:
+    """Return the stored ID-card PDF, lazily rendering when absent."""
+    if id_card.object_key:
+        try:
+            return doc_service.read_bytes(id_card.object_key)
+        except (FileNotFoundError, OSError):
+            pass
+    data = render_id_card(id_card)
+    _store_id_card_pdf(id_card, data, actor=actor)
+    return data
+
+
+def generate_id_card_document(id_card: IDCard, *, actor=None) -> IDCard:
+    data = render_id_card(id_card)
+    return _store_id_card_pdf(id_card, data, actor=actor)
+
+
+@transaction.atomic
+def mark_id_card_printed(id_card: IDCard, *, actor=None) -> IDCard:
+    """Stamp the ID card and complete the final print stage."""
+    record = id_card.training_record
+    if record is None:
+        raise CertificateDocumentError("ID card is not linked to a training record.")
+    certificate = record.certificates.filter(printed_at__isnull=False).first()
+    if certificate is None and record.status_id < WorkflowStatusCode.CERTIFICATE_DONE:
+        raise CertificateDocumentError("Print the certificate before the ID card.")
+
+    actor = actor if getattr(actor, "is_authenticated", False) else None
+    id_card.printed_at = timezone.now()
+    id_card.printed_by = actor
+    id_card.save(update_fields=["printed_at", "printed_by"])
+
+    if record.status_id in (
+        WorkflowStatusCode.MD_DONE,
+        WorkflowStatusCode.CERTIFICATE_DONE,
+        WorkflowStatusCode.ID_CARD_DONE,
+    ):
+        while record.status_id in (
+            WorkflowStatusCode.MD_DONE,
+            WorkflowStatusCode.CERTIFICATE_DONE,
+            WorkflowStatusCode.ID_CARD_DONE,
+        ):
+            workflow_services.advance(record, actor)
+    write_audit(
+        action="id_card.print",
+        entity="id_card",
+        entity_id=id_card.pk,
+        actor=actor,
+    )
+    return id_card
 
 
 def expiring_soon_days() -> int:

@@ -261,6 +261,10 @@ CAPACITY_RESERVE_PCT = 10  # default carry-forward headroom (SAD §8.1)
 # ── Domain: certificate presentation ────────────────────────────────────────
 # Branding is deployment-specific. Image keys point at files in the configured
 # default storage (local media or S3/MinIO); leave blank to draw text fallbacks.
+DOCUMENT_UPLOAD_MAX_BYTES = int(env("DOCUMENT_UPLOAD_MAX_BYTES", str(10 * 1024 * 1024)))
+CERTIFICATE_UPLOAD_MAX_BYTES = int(
+    env("CERTIFICATE_UPLOAD_MAX_BYTES", str(DOCUMENT_UPLOAD_MAX_BYTES))
+)
 CERTIFICATE_ORG_NAME = env("CERTIFICATE_ORG_NAME", "TASL Training Centre")
 CERTIFICATE_ORG_ADDRESS = env("CERTIFICATE_ORG_ADDRESS", "")
 CERTIFICATE_TITLE = env("CERTIFICATE_TITLE", "CERTIFICATE OF TRAINING")

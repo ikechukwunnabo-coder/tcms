@@ -27,6 +27,11 @@ urlpatterns = [
         name="resend-verification-page",
     ),
     path("dashboard/", views.dashboard, name="dashboard"),
+    path(
+        "certificates/<int:pk>/download/",
+        views.certificate_download,
+        name="certificate-download",
+    ),
     path("bookings/<int:pk>/cji/", views.cji_view, name="booking-cji"),
     path("bookings/<int:pk>/cji/resend/", views.cji_resend_view, name="booking-cji-resend"),
 ]

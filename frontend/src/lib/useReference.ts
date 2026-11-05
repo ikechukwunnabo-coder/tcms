@@ -1,6 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { getList } from "../api/client";
 import type {
+  CertificateType,
   Company,
   ContactType,
   CorporateAccount,
@@ -28,6 +29,7 @@ export function useReference() {
         titles,
         contactTypes,
         courses,
+        certificateTypes,
         venues,
         instructors,
         accounts,
@@ -39,6 +41,7 @@ export function useReference() {
         getList<Title>("/titles/", params),
         getList<ContactType>("/contact-types/", params),
         getList<Course>("/courses/", params),
+        getList<CertificateType>("/certificate-types/", params),
         getList<Venue>("/venues/", params),
         getList<Instructor>("/instructors/", params),
         getList<CorporateAccount>("/corporate-accounts/", params),
@@ -51,6 +54,7 @@ export function useReference() {
         titles: titles.data,
         contactTypes: contactTypes.data,
         courses: courses.data,
+        certificateTypes: certificateTypes.data,
         venues: venues.data,
         instructors: instructors.data,
         accounts: accounts.data,

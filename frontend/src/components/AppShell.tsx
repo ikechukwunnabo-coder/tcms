@@ -2,6 +2,7 @@ import { Suspense, useEffect, useState } from "react";
 import { NavLink, Outlet, useLocation } from "react-router-dom";
 import {
   Award,
+  BookOpen,
   CalendarDays,
   ChartNoAxesCombined,
   ClipboardList,
@@ -45,6 +46,7 @@ const NAV: NavItem[] = [
   { to: "/", label: "Operations board", icon: LayoutDashboard, end: true },
   { to: "/workflow", label: "Workflow", icon: GitPullRequest },
   { to: "/learners", label: "Learners", icon: Users, roles: LEARNER_ROLES },
+  { to: "/courses", label: "Courses", icon: BookOpen, roles: ["system_admin"] },
   { to: "/scheduling", label: "Scheduling", icon: CalendarDays },
   { to: "/enrolments", label: "Enrolments", icon: ClipboardList },
   { to: "/certificates", label: "Certificates", icon: Award, roles: CERTIFICATE_READ },

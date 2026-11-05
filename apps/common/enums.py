@@ -42,10 +42,18 @@ class WorkflowStatusCode(models.IntegerChoices):
 class CertificateTypeCode(models.IntegerChoices):
     STANDARD = 1, "Standard"
     NIMASA = 2, "NIMASA"
+    OPITO = 4, "OPITO"
 
 
 class ExpiryTypeCode(models.IntegerChoices):
+    NONE = 0, "No expiry"
     CALCULATED = 1, "Calculated automatically"
+    FOET = 2, "FOET expiration date calculation"
+
+
+class CertificateSource(models.TextChoices):
+    GENERATED = "generated", "Generated"
+    UPLOADED = "uploaded", "Uploaded"
 
 
 class Sex(models.TextChoices):

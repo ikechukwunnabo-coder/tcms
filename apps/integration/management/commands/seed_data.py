@@ -51,7 +51,7 @@ COMPANIES = [
     ("NIMASA", "Nigerian Maritime Admin", "cert@nimasa.example", False),
 ]
 
-CERT_TYPES = [(1, "Standard"), (2, "NIMASA")]
+CERT_TYPES = [(1, "Standard"), (2, "NIMASA"), (4, "OPITO")]
 
 MODULES = [
     "Sea Survival", "Fire Fighting", "First Aid", "Helicopter Safety",
@@ -68,7 +68,7 @@ COURSES = [
     (
         "BOSIET",
         "Basic Offshore Safety Induction & Emergency Training",
-        1,
+        4,
         4,
         4,
         True,
@@ -76,9 +76,9 @@ COURSES = [
         "5700",
         None,
     ),
-    ("BOSIET-R", "BOSIET Refresher", 1, 3, 4, True, True, "5701", "BOSIET"),
-    ("HUET", "Helicopter Underwater Escape Training", 1, 2, 4, True, True, "5095", None),
-    ("FOET", "Further Offshore Emergency Training", 1, 2, 4, True, True, "5858", "BOSIET"),
+    ("BOSIET-R", "BOSIET Refresher", 4, 3, 4, True, True, "5701", "BOSIET"),
+    ("HUET", "Helicopter Underwater Escape Training", 4, 2, 4, True, True, "5095", None),
+    ("FOET", "Further Offshore Emergency Training", 4, 2, 4, True, True, "5858", "BOSIET"),
     ("H2S", "H2S & Breathing Apparatus", 1, 1, 2, False, False, "", None),
     ("FIRST-AID", "Basic First Aid", 1, 1, 3, False, False, "", None),
     ("WELD-6G", "6G Welding Certification", 2, 5, 2, True, False, "", None),
@@ -143,6 +143,7 @@ class Command(BaseCommand):
                 defaults={
                     "name": name,
                     "cert_type_id": cert,
+                    "expiry_type": 2 if code == "FOET" else 1,
                     "duration_days": dur,
                     "validity_years": val,
                     "id_card": idc,

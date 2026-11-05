@@ -1,9 +1,11 @@
+import tempfile
 from datetime import date, timedelta
 
 from django.core.files.base import ContentFile
 from django.core.files.storage import default_storage
+from django.core.files.uploadedfile import SimpleUploadedFile
 from django.core.management import call_command
-from django.test import TestCase
+from django.test import TestCase, override_settings
 from django.utils import timezone
 from rest_framework.authtoken.models import Token
 from rest_framework.test import APITestCase
@@ -17,7 +19,7 @@ from apps.certification.models import (
     CertificateReminder,
     CertificateSequence,
 )
-from apps.common.enums import CertificateReminderStatus, RoleCode
+from apps.common.enums import CertificateReminderStatus, ExpiryTypeCode, RoleCode
 from apps.delivery.models import TrainingRecord
 from apps.learners.models import Learner
 from apps.medicals.models import Medical
@@ -31,7 +33,7 @@ class CertificateTests(TestCase):
     def setUpTestData(cls):
         call_command("seed_roles", verbosity=0)
         call_command("seed_data", verbosity=0)
-        cls.course = Course.objects.get(course_code="BOSIET")  # validity 4
+        cls.course = Course.objects.get(course_code="FIRST-AID")  # validity 3, non-OPITO
         cls.learner = Learner.objects.create(
             badge_no="C001", surname="Roe", first_name="Jane", birth_date=date(1990, 5, 6)
         )
@@ -76,7 +78,7 @@ class CertificateTests(TestCase):
         self._valid_medical()
         certificate = cert.issue_certificate(self.record, on_date=self.on_date)
         self.assertTrue(certificate.certificate_no.startswith("T26"))
-        self.assertEqual(certificate.expiry_date, date(2030, 1, 12))
+        self.assertEqual(certificate.expiry_date, date(2029, 1, 12))
 
     def test_signature_and_seal_r_wf_07(self):
         self._valid_medical()
@@ -86,6 +88,25 @@ class CertificateTests(TestCase):
         self.assertTrue(certificate.signature_applied)
         self.assertTrue(certificate.seal_applied)
         self.assertIsNotNone(certificate.md_approved_at)
+
+    def test_no_expiry_course_has_no_expiry_date(self):
+        self._valid_medical()
+        self.course.expiry_type = ExpiryTypeCode.NONE
+        self.course.save(update_fields=["expiry_type"])
+        certificate = cert.issue_certificate(self.record, on_date=self.on_date)
+        self.assertIsNone(certificate.expiry_date)
+
+    def test_foet_expiry_uses_previous_expiry(self):
+        self._valid_medical()
+        record = TrainingRecord.objects.create(
+            learner=self.learner,
+            course=Course.objects.get(course_code="FOET"),
+            status=WorkflowStatus.objects.get(pk=9),
+            start_date=date(2026, 1, 13),
+            prev_expiry=date(2026, 6, 30),
+        )
+        certificate = cert.issue_certificate(record, on_date=self.on_date)
+        self.assertEqual(certificate.expiry_date, date(2030, 6, 30))
 
 
 class CertificateRenderingTests(TestCase):
@@ -356,3 +377,188 @@ class CertificateReminderAPITests(APITestCase):
 
 
 
+
+@override_settings(MEDIA_ROOT=tempfile.mkdtemp())
+class CertificateDocumentAPITests(APITestCase):
+    @classmethod
+    def setUpTestData(cls):
+        call_command("seed_roles", verbosity=0)
+        call_command("seed_data", verbosity=0)
+        cls.course = Course.objects.get(course_code="FIRST-AID")
+        cls.opito_course = Course.objects.get(course_code="BOSIET")
+        cls.learner = Learner.objects.create(
+            badge_no="DOC1", surname="Stone", first_name="Mia", birth_date=date(1990, 1, 1)
+        )
+        Medical.objects.create(
+            learner=cls.learner,
+            issued_date=date(2025, 1, 1),
+            expiry_date=date(2027, 1, 1),
+            active=True,
+            fitness="fit",
+        )
+        cls.record = TrainingRecord.objects.create(
+            learner=cls.learner,
+            course=cls.course,
+            status=WorkflowStatus.objects.get(pk=9),
+            start_date=date(2026, 1, 13),
+        )
+        cls.opito_record = TrainingRecord.objects.create(
+            learner=cls.learner,
+            course=cls.opito_course,
+            status=WorkflowStatus.objects.get(pk=9),
+            start_date=date(2026, 1, 13),
+        )
+        cls.admin = User.objects.create_user("docadmin", password="pw")
+        cls.admin.roles.add(Role.objects.get(pk=RoleCode.ADMIN))
+        cls.printer = User.objects.create_user("docprinter", password="pw")
+        cls.printer.roles.add(Role.objects.get(pk=RoleCode.PRINTER))
+        cls.viewer = User.objects.create_user("docviewer", password="pw")
+        cls.viewer.roles.add(Role.objects.get(pk=RoleCode.FRONT_DESK))
+
+    def _auth(self, user):
+        token, _ = Token.objects.get_or_create(user=user)
+        self.client.credentials(HTTP_AUTHORIZATION="Token " + token.key)
+
+    def _issue(self, record):
+        self._auth(self.admin)
+        return self.client.post(
+            "/api/v1/certificates/issue/", {"training_record": record.pk}, format="json"
+        )
+
+    def test_non_opito_generate_head_and_download(self):
+        response = self._issue(self.record)
+        self.assertEqual(response.status_code, 201)
+        self.assertEqual(response.data["format"], 1)
+        self.assertEqual(response.data["source"], "generated")
+        certificate_id = response.data["id"]
+
+        generated = self.client.post(f"/api/v1/certificates/{certificate_id}/generate/")
+        self.assertEqual(generated.status_code, 200)
+        self.assertTrue(generated.data["object_key"])
+
+        head = self.client.head(f"/api/v1/certificates/{certificate_id}/document/")
+        self.assertEqual(head.status_code, 200)
+        self.assertEqual(head["Content-Type"], "application/pdf")
+        self.assertGreater(int(head["Content-Length"]), 0)
+
+        download = self.client.get(f"/api/v1/certificates/{certificate_id}/document/")
+        self.assertEqual(download.status_code, 200)
+        self.assertTrue(b"".join(download.streaming_content).startswith(b"%PDF-"))
+
+    def test_read_only_role_can_download_but_not_manage_documents(self):
+        response = self._issue(self.record)
+        certificate_id = response.data["id"]
+        self._auth(self.viewer)
+        self.assertEqual(
+            self.client.head(f"/api/v1/certificates/{certificate_id}/document/").status_code,
+            200,
+        )
+        self.assertEqual(
+            self.client.post(f"/api/v1/certificates/{certificate_id}/generate/").status_code,
+            403,
+        )
+        self.assertEqual(
+            self.client.post(f"/api/v1/certificates/{certificate_id}/print/").status_code,
+            403,
+        )
+
+    def test_opito_upload_requires_write_role(self):
+        response = self._issue(self.opito_record)
+        certificate_id = response.data["id"]
+        self._auth(self.viewer)
+        upload = SimpleUploadedFile(
+            "opito.pdf", b"%PDF-1.4\n% test certificate\n", content_type="application/pdf"
+        )
+        denied = self.client.post(
+            f"/api/v1/certificates/{certificate_id}/upload/",
+            {"file": upload},
+            format="multipart",
+        )
+        self.assertEqual(denied.status_code, 403)
+
+    def test_opito_issue_upload_and_download(self):
+        response = self._issue(self.opito_record)
+        self.assertEqual(response.status_code, 201)
+        self.assertEqual(response.data["format"], 4)
+        self.assertTrue(response.data["certificate_no"].startswith("OPITO-"))
+        self.assertEqual(CertificateSequence.objects.count(), 0)
+        certificate_id = response.data["id"]
+
+        missing = self.client.get(f"/api/v1/certificates/{certificate_id}/document/")
+        self.assertEqual(missing.status_code, 404)
+        self.assertEqual(missing.data["error"], "certificate_document_missing")
+
+        generated = self.client.post(f"/api/v1/certificates/{certificate_id}/generate/")
+        self.assertEqual(generated.status_code, 422)
+
+        upload = SimpleUploadedFile(
+            "opito.pdf", b"%PDF-1.4\n% test certificate\n", content_type="application/pdf"
+        )
+        uploaded = self.client.post(
+            f"/api/v1/certificates/{certificate_id}/upload/",
+            {
+                "file": upload,
+                "certificate_no": "OPITO-EXT-1",
+                "opito_learner_id": "OL-99",
+            },
+            format="multipart",
+        )
+        self.assertEqual(uploaded.status_code, 200)
+        self.assertEqual(uploaded.data["source"], "uploaded")
+        self.assertEqual(uploaded.data["certificate_no"], "OPITO-EXT-1")
+        self.assertEqual(uploaded.data["opito_learner_id"], "OL-99")
+
+        download = self.client.get(f"/api/v1/certificates/{certificate_id}/document/")
+        self.assertEqual(download.status_code, 200)
+
+    def test_upload_rejects_non_pdf(self):
+        response = self._issue(self.opito_record)
+        certificate_id = response.data["id"]
+        upload = SimpleUploadedFile("bad.pdf", b"not a pdf", content_type="application/pdf")
+        rejected = self.client.post(
+            f"/api/v1/certificates/{certificate_id}/upload/",
+            {"file": upload},
+            format="multipart",
+        )
+        self.assertEqual(rejected.status_code, 422)
+        self.assertEqual(rejected.data["error"], "invalid_certificate_document")
+
+    def test_print_auto_completes_when_course_has_no_id_card(self):
+        response = self._issue(self.record)
+        certificate_id = response.data["id"]
+        self._auth(self.printer)
+        printed = self.client.post(f"/api/v1/certificates/{certificate_id}/print/")
+        self.assertEqual(printed.status_code, 200)
+        self.record.refresh_from_db()
+        self.assertEqual(self.record.status_id, 12)
+
+    def test_print_certificate_then_id_card_completes(self):
+        response = self._issue(self.opito_record)
+        certificate_id = response.data["id"]
+        self._auth(self.printer)
+        self.assertEqual(
+            self.client.post(f"/api/v1/certificates/{certificate_id}/print/").status_code, 200
+        )
+        self.opito_record.refresh_from_db()
+        self.assertEqual(self.opito_record.status_id, 10)
+
+        issued = self.client.post(
+            "/api/v1/id-cards/issue/",
+            {"training_record": self.opito_record.pk},
+            format="json",
+        )
+        self.assertEqual(issued.status_code, 201)
+        self.assertTrue(issued.data["card_no"].startswith("ID"))
+        card_id = issued.data["id"]
+        self.assertEqual(
+            self.client.post(f"/api/v1/id-cards/{card_id}/generate/").status_code, 200
+        )
+        self.assertEqual(
+            self.client.post(f"/api/v1/id-cards/{card_id}/print/").status_code, 200
+        )
+        self.opito_record.refresh_from_db()
+        self.assertEqual(self.opito_record.status_id, 12)
+
+        download = self.client.get(f"/api/v1/id-cards/{card_id}/document/")
+        self.assertEqual(download.status_code, 200)
+        self.assertEqual(download["Content-Type"], "application/pdf")

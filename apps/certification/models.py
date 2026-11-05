@@ -1,7 +1,11 @@
 from django.db import models
 
 from apps.catalogue.models import CertificateType
-from apps.common.enums import CertificateBatchStatus, CertificateReminderStatus
+from apps.common.enums import (
+    CertificateBatchStatus,
+    CertificateReminderStatus,
+    CertificateSource,
+)
 from apps.common.models import TimeStampedModel
 from apps.learners.models import Learner
 
@@ -37,6 +41,10 @@ class Certificate(models.Model):
     format = models.ForeignKey(
         CertificateType, null=True, blank=True, on_delete=models.SET_NULL, related_name="+"
     )
+    source = models.CharField(
+        max_length=16, choices=CertificateSource.choices, default=CertificateSource.GENERATED
+    )
+    opito_learner_id = models.CharField(max_length=64, blank=True, default="")
     issued_at = models.DateTimeField(null=True, blank=True)
     issued_by = models.ForeignKey(
         "accounts.User", null=True, blank=True, on_delete=models.SET_NULL, related_name="+"

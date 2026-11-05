@@ -31,3 +31,19 @@ class NoReleasedCertificates(BatchError):
 
 class BatchDeliveryError(BatchError):
     """The corporate ZIP could not be delivered to the lead email."""
+
+
+class CertificateDocumentError(Exception):
+    """Base class for certificate/ID-card artefact rule violations."""
+
+
+class InvalidCertificateDocument(CertificateDocumentError):
+    """The uploaded file is not a valid certificate/ID-card PDF."""
+
+
+class CertificateDocumentMissing(CertificateDocumentError):
+    """The requested artefact has not been generated or uploaded yet."""
+
+
+class IdCardNotRequired(CertificateDocumentError):
+    """The course is not configured to issue an ID card."""

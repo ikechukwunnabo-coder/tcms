@@ -15,7 +15,7 @@ class CourseSerializer(serializers.ModelSerializer):
         fields = [
             "id", "course_code", "name", "cert_type", "expiry_type", "duration_days",
             "validity_years", "id_card", "foet_required", "opito_reg_code",
-            "refresher_course", "active",
+            "front_id_text", "back_id_text", "refresher_course", "active",
         ]
 
 

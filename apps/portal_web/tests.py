@@ -402,6 +402,57 @@ class DashboardTests(TestCase):
         self.assertContains(response, "Valid")
         self.assertContains(response, "Your certificates")
 
+    def test_certificate_download_renders_pdf(self):
+        status = WorkflowStatus.objects.create(code="certified", name="Certified")
+        record = TrainingRecord.objects.create(
+            learner=self.learner,
+            course=self.course,
+            session=self.session,
+            status=status,
+            start_date=date(2026, 5, 4),
+        )
+        certificate = Certificate.objects.create(
+            training_record=record,
+            learner=self.learner,
+            certificate_no="TC-1",
+            issued_at=timezone.now(),
+            expiry_date=date(2030, 5, 5),
+        )
+        response = self.client.get(
+            reverse("portal_web:certificate-download", args=[certificate.pk])
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response["Content-Type"], "application/pdf")
+        self.assertIn("attachment", response["Content-Disposition"])
+        self.assertTrue(b"".join(response.streaming_content).startswith(b"%PDF-"))
+
+    def test_certificate_download_denies_other_learner(self):
+        other_user = User.objects.create_user(
+            "eve", email="eve@example.com", password="strongpass123", email_verified=True
+        )
+        other_learner = Learner.objects.create(badge_no="WEB3", surname="Eve")
+        PortalAccount.objects.create(user=other_user, learner=other_learner)
+        status = WorkflowStatus.objects.create(code="certified2", name="Certified")
+        record = TrainingRecord.objects.create(
+            learner=self.learner,
+            course=self.course,
+            session=self.session,
+            status=status,
+            start_date=date(2026, 5, 4),
+        )
+        certificate = Certificate.objects.create(
+            training_record=record,
+            learner=self.learner,
+            certificate_no="TC-2",
+            issued_at=timezone.now(),
+            expiry_date=date(2030, 5, 5),
+        )
+        self.client.force_login(other_user)
+        response = self.client.get(
+            reverse("portal_web:certificate-download", args=[certificate.pk])
+        )
+        self.assertEqual(response.status_code, 403)
+
     def test_dashboard_hides_other_learners_bookings(self):
         other_user = User.objects.create_user(
             "eve", email="eve@example.com", password="strongpass123", email_verified=True

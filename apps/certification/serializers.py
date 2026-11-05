@@ -15,13 +15,17 @@ class CertificateSerializer(serializers.ModelSerializer):
     course_code = serializers.CharField(
         source="training_record.course.course_code", read_only=True
     )
+    course_id_card = serializers.BooleanField(
+        source="training_record.course.id_card", read_only=True
+    )
 
     class Meta:
         model = Certificate
         fields = [
             "id", "training_record", "learner", "learner_name", "badge_no",
-            "course_code", "certificate_no",
-            "format", "issued_at", "issued_by", "printed_at", "printed_by",
+            "course_code", "course_id_card", "certificate_no",
+            "format", "source", "opito_learner_id",
+            "issued_at", "issued_by", "printed_at", "printed_by",
             "id_issued_at", "id_printed_at", "expiry_date", "object_key",
             "md_approved_by", "md_approved_at", "signature_applied", "seal_applied",
             "signature_object_key", "seal_object_key", "voided_at", "void_reason",
@@ -33,6 +37,18 @@ class CertificateSerializer(serializers.ModelSerializer):
 class IssueCertificateSerializer(serializers.Serializer):
     """``POST /certificates/issue`` — issue for an approved training record."""
 
+    training_record = serializers.IntegerField()
+    certificate_no = serializers.CharField(required=False, allow_blank=True)
+    opito_learner_id = serializers.CharField(required=False, allow_blank=True)
+
+
+class CertificateUploadSerializer(serializers.Serializer):
+    file = serializers.FileField()
+    certificate_no = serializers.CharField(required=False, allow_blank=True)
+    opito_learner_id = serializers.CharField(required=False, allow_blank=True)
+
+
+class IssueIdCardSerializer(serializers.Serializer):
     training_record = serializers.IntegerField()
 
 
@@ -76,18 +92,25 @@ class CertificateSequenceSerializer(serializers.ModelSerializer):
 
 
 class IDCardSerializer(serializers.ModelSerializer):
+    learner_name = serializers.CharField(source="learner.full_name", read_only=True)
+    course_code = serializers.CharField(
+        source="training_record.course.course_code", read_only=True
+    )
+
     class Meta:
         model = IDCard
         fields = [
             "id",
             "learner",
+            "learner_name",
             "training_record",
+            "course_code",
             "card_no",
             "printed_at",
             "printed_by",
             "object_key",
         ]
-        read_only_fields = ["id", "printed_at", "printed_by"]
+        read_only_fields = ["id", "card_no", "printed_at", "printed_by"]
 
 
 class ReminderResultSerializer(serializers.Serializer):
