@@ -33,6 +33,7 @@ class Learner(TimeStampedModel):
 
     active = models.BooleanField(default=True)
     pertype = models.CharField(max_length=8, default="TRN")
+    vantage_id = models.CharField(max_length=64, blank=True, default="")
 
     # Portal/corporate reconciliation (spec BR-16): nominees are Learner rows
     # under a corporate account, with no login of their own.

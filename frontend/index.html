@@ -9,6 +9,22 @@
       content="TASL Training Centre operations console for learners, scheduling, certification and billing."
     />
     <title>TCMS Operations</title>
+    <script>
+      try {
+        var storedTheme = localStorage.getItem("tcms.theme");
+        var resolvedTheme =
+          storedTheme === "light" || storedTheme === "dark"
+            ? storedTheme
+            : window.matchMedia &&
+                window.matchMedia("(prefers-color-scheme: dark)").matches
+              ? "dark"
+              : "light";
+        document.documentElement.dataset.theme = resolvedTheme;
+        document.documentElement.style.colorScheme = resolvedTheme;
+      } catch (error) {
+        document.documentElement.dataset.theme = "light";
+      }
+    </script>
   </head>
   <body>
     <div id="root"></div>

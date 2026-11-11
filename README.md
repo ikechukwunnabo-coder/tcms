@@ -89,12 +89,18 @@ list. The settings that most often need a deployment decision:
 | `CERTIFICATE_ORG_NAME` / `CERTIFICATE_LOGO_KEY` | Certificate branding | TASL text fallback |
 | `CERTIFICATE_SIGNATORY_NAME` / `CERTIFICATE_SIGNATORY_TITLE` | Signature block | Managing Director |
 | `CERTIFICATE_VERIFY_URL` | Optional footer verification link | empty |
+| `STAFF_APP_URL` | Staff console URL linked from the learner portal | `http://localhost:5173` |
+| `PORTAL_WEB_BASE_URL` / `PORTAL_VERIFY_URL` | Public learner portal URL and emailed verification link | local portal URLs |
 | `PAYROLL_*` | Pension rates, PAYE relief and GL mappings | CPA/Paye defaults |
 
 Certificate logos, signatures and seals are storage keys (local `media/` or
 S3/MinIO). Missing artwork is replaced with drawn text/line fallbacks, so a
 deployment never fails to produce a certificate PDF. A PDF already stored at
 `Certificate.object_key` is always served unchanged.
+
+The learner portal accepts only accounts linked to a `PortalAccount`; staff
+accounts are directed to `STAFF_APP_URL`. Staff console sign-in remains
+username-based, while portal sign-in uses email.
 
 ## Docker
 

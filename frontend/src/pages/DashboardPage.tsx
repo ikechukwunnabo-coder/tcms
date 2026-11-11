@@ -14,7 +14,7 @@ import { ArrowUpRight, RefreshCw } from "lucide-react";
 import { request } from "../api/client";
 import type { Dashboard } from "../api/types";
 import { useAuth } from "../auth/context";
-import { REPORTING_ROLES, can } from "../auth/roles";
+import { REPORTING_ROLES, can, displayName } from "../auth/roles";
 import {
   Button,
   Card,
@@ -25,12 +25,51 @@ import {
   Stat,
   StatusBadge,
 } from "../components/ui";
+import { AXIS_GROUPS } from "../navigation/axis";
 import { count, errorMessage, formatDate, money, titleCase } from "../lib/format";
 
 function monthLabel(value: string) {
   const [year, month] = value.split("-").map(Number);
   return new Intl.DateTimeFormat("en-GB", { month: "short" }).format(
     new Date(year, month - 1, 1),
+  );
+}
+
+function HomeTiles() {
+  const { user } = useAuth();
+  const groups = AXIS_GROUPS.map((group) => ({
+    ...group,
+    items: group.items.filter((item) => can(user, item.roles)),
+  })).filter((group) => group.items.length);
+
+  return (
+    <div className="axis-home">
+      {groups.map((group) => (
+        <section className="axis-home-group" key={group.label}>
+          <div className="axis-home-group-head">
+            <h2>{group.label}</h2>
+            <span>{group.items.length} workspaces</span>
+          </div>
+          <div className="axis-home-grid">
+            {group.items.map((item) => {
+              const Icon = item.icon;
+              return (
+                <Link className="axis-tile" to={item.to} key={item.to}>
+                  <span className="axis-tile-icon">
+                    <Icon size={19} aria-hidden="true" />
+                  </span>
+                  <span className="axis-tile-copy">
+                    <strong>{item.title}</strong>
+                    <small>{item.description}</small>
+                  </span>
+                  <ArrowUpRight size={16} aria-hidden="true" />
+                </Link>
+              );
+            })}
+          </div>
+        </section>
+      ))}
+    </div>
   );
 }
 
@@ -42,13 +81,41 @@ export function DashboardPage() {
     refetchInterval: 60_000,
   });
 
-  if (dashboard.isLoading) return <Loading rows={8} />;
+  const header = (
+    <PageHeader
+      eyebrow="Home"
+      title={`Welcome, ${displayName(user).split(" ")[0] || "colleague"}`}
+      description="Choose a workspace to manage training records, learners, reference data and the rest of the centre."
+      actions={
+        <>
+          <Button onClick={() => void dashboard.refetch()}>
+            <RefreshCw size={16} aria-hidden="true" /> Refresh
+          </Button>
+          {can(user, REPORTING_ROLES) ? <CsvButton dataset="flow" label="Export flow" /> : null}
+        </>
+      }
+    />
+  );
+
+  if (dashboard.isLoading) {
+    return (
+      <>
+        {header}
+        <HomeTiles />
+        <Loading rows={6} />
+      </>
+    );
+  }
   if (dashboard.isError || !dashboard.data) {
     return (
-      <ErrorState
-        message={errorMessage(dashboard.error)}
-        retry={() => void dashboard.refetch()}
-      />
+      <>
+        {header}
+        <HomeTiles />
+        <ErrorState
+          message={errorMessage(dashboard.error)}
+          retry={() => void dashboard.refetch()}
+        />
+      </>
     );
   }
 
@@ -61,19 +128,8 @@ export function DashboardPage() {
 
   return (
     <>
-      <PageHeader
-        eyebrow="Operations board"
-        title="Today at the centre"
-        description="A live read on throughput, cash, certification and the work waiting on a decision."
-        actions={
-          <>
-            <Button onClick={() => void dashboard.refetch()}>
-              <RefreshCw size={16} aria-hidden="true" /> Refresh
-            </Button>
-            {can(user, REPORTING_ROLES) ? <CsvButton dataset="flow" label="Export flow" /> : null}
-          </>
-        }
-      />
+      {header}
+      <HomeTiles />
 
       <div className="kpi-grid">
         <Stat
@@ -119,7 +175,7 @@ export function DashboardPage() {
           <strong>{count(data.kpis.medicals_expiring_30d)}</strong>
         </div>
         <div className="mini-stat">
-          <span>Open workflow records</span>
+          <span>All records records</span>
           <strong>{count(data.kpis.workflow_open)}</strong>
         </div>
       </div>
@@ -190,8 +246,8 @@ export function DashboardPage() {
         <Card
           title="Your approval stages"
           aside={
-            <Link className="text-link" to="/workflow">
-              Open workflow <ArrowUpRight size={14} aria-hidden="true" />
+            <Link className="text-link" to="/training-records">
+              All records <ArrowUpRight size={14} aria-hidden="true" />
             </Link>
           }
         >
@@ -200,7 +256,7 @@ export function DashboardPage() {
               {data.my_stages.map((stage) => (
                 <Link
                   key={stage.status}
-                  to={`/workflow?status=${stage.status}`}
+                  to={`/training-records?status=${stage.status}`}
                   className="stage-row"
                 >
                   <span className="stage-index">{String(stage.status).padStart(2, "0")}</span>

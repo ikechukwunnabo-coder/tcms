@@ -1,6 +1,6 @@
 import { useState } from "react";
 import type { FormEvent } from "react";
-import { Navigate, useLocation, useNavigate } from "react-router-dom";
+import { Link, Navigate, useLocation, useNavigate } from "react-router-dom";
 import { ArrowRight, Eye, EyeOff, KeyRound, ShieldCheck } from "lucide-react";
 import { useAuth } from "../auth/context";
 import { Button, Field, Input } from "../components/ui";
@@ -132,7 +132,7 @@ export function LoginPage() {
 
           <p className="login-foot">
             Account access is role-based. If your permissions look wrong, contact the system
-            administrator.
+            administrator. <Link to="/verify">Verify a certificate</Link>
           </p>
         </form>
         <p className="login-version">TCMS · Operations console · v0.1</p>

@@ -566,6 +566,72 @@ paths:
               schema:
                 $ref: '#/components/schemas/Approval'
           description: ''
+  /api/v1/approvals/bulk/:
+    post:
+      operationId: v1_approvals_bulk_create
+      description: |-
+        ``/v1/approvals`` lists approval rows; ``{pk}`` in the advance/reject
+        actions is the **training record** id (design ``04`` §4, R-WF-01..03).
+      tags:
+      - v1
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Approval'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/Approval'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/Approval'
+        required: true
+      security:
+      - tokenAuth: []
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Approval'
+          description: ''
+  /api/v1/approvals/my-activity/:
+    get:
+      operationId: v1_approvals_my_activity_retrieve
+      description: |-
+        ``/v1/approvals`` lists approval rows; ``{pk}`` in the advance/reject
+        actions is the **training record** id (design ``04`` §4, R-WF-01..03).
+      tags:
+      - v1
+      security:
+      - tokenAuth: []
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Approval'
+          description: ''
+  /api/v1/approvals/pending-tasks/:
+    get:
+      operationId: v1_approvals_pending_tasks_retrieve
+      description: |-
+        ``/v1/approvals`` lists approval rows; ``{pk}`` in the advance/reject
+        actions is the **training record** id (design ``04`` §4, R-WF-01..03).
+      tags:
+      - v1
+      security:
+      - tokenAuth: []
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Approval'
+          description: ''
   /api/v1/audit-events/:
     get:
       operationId: v1_audit_events_list
@@ -650,7 +716,7 @@ paths:
     post:
       operationId: v1_auth_login_create
       description: 'R-API-AUTH-01: username/password -> token + roles (token auth;
-        JWT is ○).'
+        JWT is â—‹).'
       tags:
       - v1
       requestBody:
@@ -682,6 +748,30 @@ paths:
       description: 'R-API-AUTH-02: revoke the current token (or session).'
       tags:
       - v1
+      security:
+      - tokenAuth: []
+      - cookieAuth: []
+      responses:
+        '204':
+          description: No response body
+  /api/v1/auth/password:
+    post:
+      operationId: v1_auth_password_create
+      description: Self-service password change for the authenticated staff account.
+      tags:
+      - v1
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ChangePassword'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/ChangePassword'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/ChangePassword'
+        required: true
       security:
       - tokenAuth: []
       - cookieAuth: []
@@ -767,6 +857,36 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/PortalAccount'
+          description: ''
+  /api/v1/backup/backup:
+    post:
+      operationId: v1_backup_backup_create
+      tags:
+      - v1
+      security:
+      - tokenAuth: []
+      - cookieAuth: []
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BackupResult'
+          description: ''
+  /api/v1/backup/test:
+    post:
+      operationId: v1_backup_test_create
+      tags:
+      - v1
+      security:
+      - tokenAuth: []
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BackupTest'
           description: ''
   /api/v1/bookings/{id}/cji:
     get:
@@ -1290,10 +1410,101 @@ paths:
               schema:
                 $ref: '#/components/schemas/Certificate'
           description: ''
+  /api/v1/certificates/{id}/document/:
+    get:
+      operationId: v1_certificates_document_retrieve
+      description: Return the generated or uploaded certificate PDF.
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: A unique integer value identifying this certificate.
+        required: true
+      tags:
+      - v1
+      security:
+      - tokenAuth: []
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Certificate'
+          description: ''
+  /api/v1/certificates/{id}/generate/:
+    post:
+      operationId: v1_certificates_generate_create
+      description: Read-only ModelViewSet guarded by :class:`RolePermission`.
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: A unique integer value identifying this certificate.
+        required: true
+      tags:
+      - v1
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Certificate'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/Certificate'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/Certificate'
+      security:
+      - tokenAuth: []
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Certificate'
+          description: ''
   /api/v1/certificates/{id}/md-approve/:
     post:
       operationId: v1_certificates_md_approve_create
       description: 'R-WF-07 stage-2 (gap G2): apply digital signature + seal.'
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: A unique integer value identifying this certificate.
+        required: true
+      tags:
+      - v1
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Certificate'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/Certificate'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/Certificate'
+      security:
+      - tokenAuth: []
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Certificate'
+          description: ''
+  /api/v1/certificates/{id}/print/:
+    post:
+      operationId: v1_certificates_print_create
+      description: Read-only ModelViewSet guarded by :class:`RolePermission`.
       parameters:
       - in: path
         name: id
@@ -1419,6 +1630,40 @@ paths:
     post:
       operationId: v1_certificates_renew_create
       description: Request renewal for an eligible certificate (R-REN-01/02/03).
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: A unique integer value identifying this certificate.
+        required: true
+      tags:
+      - v1
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Certificate'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/Certificate'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/Certificate'
+      security:
+      - tokenAuth: []
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Certificate'
+          description: ''
+  /api/v1/certificates/{id}/upload/:
+    post:
+      operationId: v1_certificates_upload_create
+      description: Read-only ModelViewSet guarded by :class:`RolePermission`.
       parameters:
       - in: path
         name: id
@@ -2241,6 +2486,95 @@ paths:
               schema:
                 $ref: '#/components/schemas/Nominee'
           description: ''
+  /api/v1/course-item-rel:
+    post:
+      operationId: v1_course_item_rel_create
+      tags:
+      - v1
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RelationCreate'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/RelationCreate'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/RelationCreate'
+      security:
+      - tokenAuth: []
+      - cookieAuth: []
+      responses:
+        '201':
+          description: No response body
+  /api/v1/course-item-rel/{parent_id}:
+    get:
+      operationId: v1_course_item_rel_retrieve
+      parameters:
+      - in: path
+        name: parent_id
+        schema:
+          type: integer
+        required: true
+      tags:
+      - v1
+      security:
+      - tokenAuth: []
+      - cookieAuth: []
+      responses:
+        '200':
+          description: No response body
+    delete:
+      operationId: v1_course_item_rel_destroy
+      parameters:
+      - in: path
+        name: parent_id
+        schema:
+          type: integer
+        required: true
+      tags:
+      - v1
+      security:
+      - tokenAuth: []
+      - cookieAuth: []
+      responses:
+        '204':
+          description: No response body
+  /api/v1/course-item-rel/{parent_id}/available:
+    get:
+      operationId: v1_course_item_rel_available_retrieve
+      parameters:
+      - in: path
+        name: parent_id
+        schema:
+          type: integer
+        required: true
+      tags:
+      - v1
+      security:
+      - tokenAuth: []
+      - cookieAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/v1/course-item-rel/{relation_id}/delete:
+    delete:
+      operationId: v1_course_item_rel_delete_destroy
+      parameters:
+      - in: path
+        name: relation_id
+        schema:
+          type: integer
+        required: true
+      tags:
+      - v1
+      security:
+      - tokenAuth: []
+      - cookieAuth: []
+      responses:
+        '204':
+          description: No response body
   /api/v1/course-items/:
     get:
       operationId: v1_course_items_list
@@ -2430,6 +2764,95 @@ paths:
         schema:
           type: integer
         description: A unique integer value identifying this course item.
+        required: true
+      tags:
+      - v1
+      security:
+      - tokenAuth: []
+      - cookieAuth: []
+      responses:
+        '204':
+          description: No response body
+  /api/v1/course-module-rel:
+    post:
+      operationId: v1_course_module_rel_create
+      tags:
+      - v1
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RelationCreate'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/RelationCreate'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/RelationCreate'
+      security:
+      - tokenAuth: []
+      - cookieAuth: []
+      responses:
+        '201':
+          description: No response body
+  /api/v1/course-module-rel/{parent_id}:
+    get:
+      operationId: v1_course_module_rel_retrieve
+      parameters:
+      - in: path
+        name: parent_id
+        schema:
+          type: integer
+        required: true
+      tags:
+      - v1
+      security:
+      - tokenAuth: []
+      - cookieAuth: []
+      responses:
+        '200':
+          description: No response body
+    delete:
+      operationId: v1_course_module_rel_destroy
+      parameters:
+      - in: path
+        name: parent_id
+        schema:
+          type: integer
+        required: true
+      tags:
+      - v1
+      security:
+      - tokenAuth: []
+      - cookieAuth: []
+      responses:
+        '204':
+          description: No response body
+  /api/v1/course-module-rel/{parent_id}/available:
+    get:
+      operationId: v1_course_module_rel_available_retrieve
+      parameters:
+      - in: path
+        name: parent_id
+        schema:
+          type: integer
+        required: true
+      tags:
+      - v1
+      security:
+      - tokenAuth: []
+      - cookieAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/v1/course-module-rel/{relation_id}/delete:
+    delete:
+      operationId: v1_course_module_rel_delete_destroy
+      parameters:
+      - in: path
+        name: relation_id
+        schema:
+          type: integer
         required: true
       tags:
       - v1
@@ -2867,8 +3290,7 @@ paths:
   /api/v1/documents/:
     get:
       operationId: v1_documents_list
-      description: M14 — signed URL delivery is deferred to Phase 2; metadata is served
-        now.
+      description: M14 — stored artefact metadata plus upload/download primitives.
       parameters:
       - in: query
         name: kind
@@ -2920,8 +3342,7 @@ paths:
           description: ''
     post:
       operationId: v1_documents_create
-      description: M14 — signed URL delivery is deferred to Phase 2; metadata is served
-        now.
+      description: M14 — stored artefact metadata plus upload/download primitives.
       tags:
       - v1
       requestBody:
@@ -2949,8 +3370,7 @@ paths:
   /api/v1/documents/{id}/:
     get:
       operationId: v1_documents_retrieve
-      description: M14 — signed URL delivery is deferred to Phase 2; metadata is served
-        now.
+      description: M14 — stored artefact metadata plus upload/download primitives.
       parameters:
       - in: path
         name: id
@@ -2972,8 +3392,7 @@ paths:
           description: ''
     put:
       operationId: v1_documents_update
-      description: M14 — signed URL delivery is deferred to Phase 2; metadata is served
-        now.
+      description: M14 — stored artefact metadata plus upload/download primitives.
       parameters:
       - in: path
         name: id
@@ -3007,8 +3426,7 @@ paths:
           description: ''
     patch:
       operationId: v1_documents_partial_update
-      description: M14 — signed URL delivery is deferred to Phase 2; metadata is served
-        now.
+      description: M14 — stored artefact metadata plus upload/download primitives.
       parameters:
       - in: path
         name: id
@@ -3041,8 +3459,7 @@ paths:
           description: ''
     delete:
       operationId: v1_documents_destroy
-      description: M14 — signed URL delivery is deferred to Phase 2; metadata is served
-        now.
+      description: M14 — stored artefact metadata plus upload/download primitives.
       parameters:
       - in: path
         name: id
@@ -3058,6 +3475,57 @@ paths:
       responses:
         '204':
           description: No response body
+  /api/v1/documents/{id}/download/:
+    get:
+      operationId: v1_documents_download_retrieve
+      description: M14 — stored artefact metadata plus upload/download primitives.
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: A unique integer value identifying this document.
+        required: true
+      tags:
+      - v1
+      security:
+      - tokenAuth: []
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Document'
+          description: ''
+  /api/v1/documents/upload/:
+    post:
+      operationId: v1_documents_upload_create
+      description: M14 — stored artefact metadata plus upload/download primitives.
+      tags:
+      - v1
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Document'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/Document'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/Document'
+        required: true
+      security:
+      - tokenAuth: []
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Document'
+          description: ''
   /api/v1/enrolments/:
     get:
       operationId: v1_enrolments_list
@@ -3805,6 +4273,177 @@ paths:
       responses:
         '204':
           description: No response body
+  /api/v1/id-cards/{id}/document/:
+    get:
+      operationId: v1_id_cards_document_retrieve
+      description: |-
+        ModelViewSet guarded by :class:`RolePermission`.
+
+        Subclasses set ``required_roles`` / ``write_roles`` (tuples of RoleCode).
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: A unique integer value identifying this id card.
+        required: true
+      tags:
+      - v1
+      security:
+      - tokenAuth: []
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/IDCard'
+          description: ''
+  /api/v1/id-cards/{id}/generate/:
+    post:
+      operationId: v1_id_cards_generate_create
+      description: |-
+        ModelViewSet guarded by :class:`RolePermission`.
+
+        Subclasses set ``required_roles`` / ``write_roles`` (tuples of RoleCode).
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: A unique integer value identifying this id card.
+        required: true
+      tags:
+      - v1
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/IDCard'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/IDCard'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/IDCard'
+        required: true
+      security:
+      - tokenAuth: []
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/IDCard'
+          description: ''
+  /api/v1/id-cards/{id}/print/:
+    post:
+      operationId: v1_id_cards_print_create
+      description: |-
+        ModelViewSet guarded by :class:`RolePermission`.
+
+        Subclasses set ``required_roles`` / ``write_roles`` (tuples of RoleCode).
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: A unique integer value identifying this id card.
+        required: true
+      tags:
+      - v1
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/IDCard'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/IDCard'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/IDCard'
+        required: true
+      security:
+      - tokenAuth: []
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/IDCard'
+          description: ''
+  /api/v1/id-cards/{id}/reprint/:
+    post:
+      operationId: v1_id_cards_reprint_create
+      description: |-
+        ModelViewSet guarded by :class:`RolePermission`.
+
+        Subclasses set ``required_roles`` / ``write_roles`` (tuples of RoleCode).
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: A unique integer value identifying this id card.
+        required: true
+      tags:
+      - v1
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/IDCard'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/IDCard'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/IDCard'
+        required: true
+      security:
+      - tokenAuth: []
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/IDCard'
+          description: ''
+  /api/v1/id-cards/issue/:
+    post:
+      operationId: v1_id_cards_issue_create
+      description: |-
+        ModelViewSet guarded by :class:`RolePermission`.
+
+        Subclasses set ``required_roles`` / ``write_roles`` (tuples of RoleCode).
+      tags:
+      - v1
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/IDCard'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/IDCard'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/IDCard'
+        required: true
+      security:
+      - tokenAuth: []
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/IDCard'
+          description: ''
   /api/v1/instructors/:
     get:
       operationId: v1_instructors_list
@@ -4842,18 +5481,24 @@ paths:
           enum:
           - certificate
           - cji
+          - foet_scan
+          - id_scan
           - medical
           - other
           - passport
           - payment_proof
           - photo
+          - welcome_letter
         description: |-
           * `passport` - Passport
+          * `id_scan` - ID scan
           * `photo` - Photo
           * `certificate` - Certificate
           * `cji` - Course Joining Instructions
+          * `foet_scan` - FOET scan
           * `medical` - Medical fitness
           * `payment_proof` - Payment proof
+          * `welcome_letter` - Welcome letter
           * `other` - Other
       - in: query
         name: learner
@@ -5045,6 +5690,63 @@ paths:
       responses:
         '204':
           description: No response body
+  /api/v1/learner-documents/{id}/download/:
+    get:
+      operationId: v1_learner_documents_download_retrieve
+      description: |-
+        ModelViewSet guarded by :class:`RolePermission`.
+
+        Subclasses set ``required_roles`` / ``write_roles`` (tuples of RoleCode).
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: A unique integer value identifying this learner document.
+        required: true
+      tags:
+      - v1
+      security:
+      - tokenAuth: []
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LearnerDocument'
+          description: ''
+  /api/v1/learner-documents/upload/:
+    post:
+      operationId: v1_learner_documents_upload_create
+      description: |-
+        ModelViewSet guarded by :class:`RolePermission`.
+
+        Subclasses set ``required_roles`` / ``write_roles`` (tuples of RoleCode).
+      tags:
+      - v1
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LearnerDocument'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/LearnerDocument'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/LearnerDocument'
+        required: true
+      security:
+      - tokenAuth: []
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LearnerDocument'
+          description: ''
   /api/v1/learners/:
     get:
       operationId: v1_learners_list
@@ -5246,6 +5948,204 @@ paths:
         schema:
           type: integer
         description: A unique integer value identifying this learner.
+        required: true
+      tags:
+      - v1
+      security:
+      - tokenAuth: []
+      - cookieAuth: []
+      responses:
+        '204':
+          description: No response body
+  /api/v1/medical-checks/:
+    get:
+      operationId: v1_medical_checks_list
+      description: |-
+        ModelViewSet guarded by :class:`RolePermission`.
+
+        Subclasses set ``required_roles`` / ``write_roles`` (tuples of RoleCode).
+      parameters:
+      - name: ordering
+        required: false
+        in: query
+        description: Which field to use when ordering the results.
+        schema:
+          type: string
+      - name: page
+        required: false
+        in: query
+        description: A page number within the paginated result set.
+        schema:
+          type: integer
+      - name: page_size
+        required: false
+        in: query
+        description: Number of results to return per page.
+        schema:
+          type: integer
+      - name: search
+        required: false
+        in: query
+        description: A search term.
+        schema:
+          type: string
+      - in: query
+        name: training_record
+        schema:
+          type: integer
+      tags:
+      - v1
+      security:
+      - tokenAuth: []
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaginatedDailyMedicalCheckList'
+          description: ''
+    post:
+      operationId: v1_medical_checks_create
+      description: |-
+        ModelViewSet guarded by :class:`RolePermission`.
+
+        Subclasses set ``required_roles`` / ``write_roles`` (tuples of RoleCode).
+      tags:
+      - v1
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/DailyMedicalCheck'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/DailyMedicalCheck'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/DailyMedicalCheck'
+        required: true
+      security:
+      - tokenAuth: []
+      - cookieAuth: []
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DailyMedicalCheck'
+          description: ''
+  /api/v1/medical-checks/{id}/:
+    get:
+      operationId: v1_medical_checks_retrieve
+      description: |-
+        ModelViewSet guarded by :class:`RolePermission`.
+
+        Subclasses set ``required_roles`` / ``write_roles`` (tuples of RoleCode).
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: A unique integer value identifying this daily medical check.
+        required: true
+      tags:
+      - v1
+      security:
+      - tokenAuth: []
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DailyMedicalCheck'
+          description: ''
+    put:
+      operationId: v1_medical_checks_update
+      description: |-
+        ModelViewSet guarded by :class:`RolePermission`.
+
+        Subclasses set ``required_roles`` / ``write_roles`` (tuples of RoleCode).
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: A unique integer value identifying this daily medical check.
+        required: true
+      tags:
+      - v1
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/DailyMedicalCheck'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/DailyMedicalCheck'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/DailyMedicalCheck'
+        required: true
+      security:
+      - tokenAuth: []
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DailyMedicalCheck'
+          description: ''
+    patch:
+      operationId: v1_medical_checks_partial_update
+      description: |-
+        ModelViewSet guarded by :class:`RolePermission`.
+
+        Subclasses set ``required_roles`` / ``write_roles`` (tuples of RoleCode).
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: A unique integer value identifying this daily medical check.
+        required: true
+      tags:
+      - v1
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PatchedDailyMedicalCheck'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/PatchedDailyMedicalCheck'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/PatchedDailyMedicalCheck'
+      security:
+      - tokenAuth: []
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DailyMedicalCheck'
+          description: ''
+    delete:
+      operationId: v1_medical_checks_destroy
+      description: |-
+        ModelViewSet guarded by :class:`RolePermission`.
+
+        Subclasses set ``required_roles`` / ``write_roles`` (tuples of RoleCode).
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: A unique integer value identifying this daily medical check.
         required: true
       tags:
       - v1
@@ -6067,6 +6967,181 @@ paths:
       responses:
         '204':
           description: No response body
+  /api/v1/opito-files/:
+    get:
+      operationId: v1_opito_files_list
+      description: 'OPITO CSV cohorts: list, validate, preview content, generate and
+        download.'
+      parameters:
+      - name: ordering
+        required: false
+        in: query
+        description: Which field to use when ordering the results.
+        schema:
+          type: string
+      - name: page
+        required: false
+        in: query
+        description: A page number within the paginated result set.
+        schema:
+          type: integer
+      - name: page_size
+        required: false
+        in: query
+        description: Number of results to return per page.
+        schema:
+          type: integer
+      - name: search
+        required: false
+        in: query
+        description: A search term.
+        schema:
+          type: string
+      tags:
+      - v1
+      security:
+      - tokenAuth: []
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaginatedOpitoFileList'
+          description: ''
+  /api/v1/opito-files/{id}/download/:
+    get:
+      operationId: v1_opito_files_download_retrieve
+      description: 'OPITO CSV cohorts: list, validate, preview content, generate and
+        download.'
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: A unique integer value identifying this opito file.
+        required: true
+      tags:
+      - v1
+      security:
+      - tokenAuth: []
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OpitoFile'
+          description: ''
+  /api/v1/opito-files/content/:
+    get:
+      operationId: v1_opito_files_content_retrieve
+      description: 'OPITO CSV cohorts: list, validate, preview content, generate and
+        download.'
+      tags:
+      - v1
+      security:
+      - tokenAuth: []
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OpitoFile'
+          description: ''
+  /api/v1/opito-files/csv/:
+    post:
+      operationId: v1_opito_files_csv_create
+      description: 'OPITO CSV cohorts: list, validate, preview content, generate and
+        download.'
+      tags:
+      - v1
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/OpitoFile'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/OpitoFile'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/OpitoFile'
+        required: true
+      security:
+      - tokenAuth: []
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OpitoFile'
+          description: ''
+  /api/v1/opito-files/file/:
+    get:
+      operationId: v1_opito_files_file_retrieve
+      description: 'OPITO CSV cohorts: list, validate, preview content, generate and
+        download.'
+      tags:
+      - v1
+      security:
+      - tokenAuth: []
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OpitoFile'
+          description: ''
+  /api/v1/opito-files/generate/:
+    post:
+      operationId: v1_opito_files_generate_create
+      description: 'OPITO CSV cohorts: list, validate, preview content, generate and
+        download.'
+      tags:
+      - v1
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/OpitoFile'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/OpitoFile'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/OpitoFile'
+        required: true
+      security:
+      - tokenAuth: []
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OpitoFile'
+          description: ''
+  /api/v1/opito-files/validate-vantage/:
+    get:
+      operationId: v1_opito_files_validate_vantage_retrieve
+      description: 'OPITO CSV cohorts: list, validate, preview content, generate and
+        download.'
+      tags:
+      - v1
+      security:
+      - tokenAuth: []
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OpitoFile'
+          description: ''
   /api/v1/outbox-events/:
     get:
       operationId: v1_outbox_events_list
@@ -8287,8 +9362,7 @@ paths:
   /api/v1/reports/:
     get:
       operationId: v1_reports_list
-      description: '``/v1/reports/{code}`` + ``/v1/reports/flow-status`` (design ``04``
-        §6 P-15).'
+      description: '``/v1/reports/{code}`` plus the reporting intelligence endpoints.'
       parameters:
       - name: ordering
         required: false
@@ -8329,8 +9403,7 @@ paths:
   /api/v1/reports/{code}/:
     get:
       operationId: v1_reports_retrieve
-      description: '``/v1/reports/{code}`` + ``/v1/reports/flow-status`` (design ``04``
-        §6 P-15).'
+      description: '``/v1/reports/{code}`` plus the reporting intelligence endpoints.'
       parameters:
       - in: path
         name: code
@@ -8350,17 +9423,70 @@ paths:
               schema:
                 $ref: '#/components/schemas/ReportDef'
           description: ''
+  /api/v1/reports/course-by-month/:
+    get:
+      operationId: v1_reports_course_by_month_retrieve
+      description: '``/v1/reports/{code}`` plus the reporting intelligence endpoints.'
+      tags:
+      - v1
+      security:
+      - tokenAuth: []
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ReportDef'
+          description: ''
+  /api/v1/reports/courses-treemap/:
+    get:
+      operationId: v1_reports_courses_treemap_retrieve
+      description: '``/v1/reports/{code}`` plus the reporting intelligence endpoints.'
+      tags:
+      - v1
+      security:
+      - tokenAuth: []
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ReportDef'
+          description: ''
+  /api/v1/reports/delegates-by-month/:
+    get:
+      operationId: v1_reports_delegates_by_month_retrieve
+      description: '``/v1/reports/{code}`` plus the reporting intelligence endpoints.'
+      tags:
+      - v1
+      security:
+      - tokenAuth: []
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ReportDef'
+          description: ''
   /api/v1/reports/export/:
     get:
       operationId: v1_reports_export_retrieve
-      description: Role-scoped CSV export for operational datasets.
+      description: Role-scoped CSV, XLSX and PDF export for operational datasets.
       parameters:
       - in: query
         name: dataset
         schema:
           type: string
-        description: Operational dataset to export as CSV.
+        description: Operational dataset to export.
         required: true
+      - in: query
+        name: format
+        schema:
+          type: string
+        description: csv (default), xlsx or pdf.
       tags:
       - v1
       security:
@@ -8391,8 +9517,135 @@ paths:
   /api/v1/reports/flow-status/:
     get:
       operationId: v1_reports_flow_status_retrieve
-      description: '``/v1/reports/{code}`` + ``/v1/reports/flow-status`` (design ``04``
-        §6 P-15).'
+      description: '``/v1/reports/{code}`` plus the reporting intelligence endpoints.'
+      tags:
+      - v1
+      security:
+      - tokenAuth: []
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ReportDef'
+          description: ''
+  /api/v1/reports/opito-monthly/:
+    get:
+      operationId: v1_reports_opito_monthly_retrieve
+      description: '``/v1/reports/{code}`` plus the reporting intelligence endpoints.'
+      tags:
+      - v1
+      security:
+      - tokenAuth: []
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ReportDef'
+          description: ''
+  /api/v1/reports/role-activity/:
+    get:
+      operationId: v1_reports_role_activity_retrieve
+      description: '``/v1/reports/{code}`` plus the reporting intelligence endpoints.'
+      tags:
+      - v1
+      security:
+      - tokenAuth: []
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ReportDef'
+          description: ''
+  /api/v1/reports/role-activity/earliest-date/:
+    get:
+      operationId: v1_reports_role_activity_earliest_date_retrieve
+      description: '``/v1/reports/{code}`` plus the reporting intelligence endpoints.'
+      tags:
+      - v1
+      security:
+      - tokenAuth: []
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ReportDef'
+          description: ''
+  /api/v1/reports/role-activity/roles/:
+    get:
+      operationId: v1_reports_role_activity_roles_retrieve
+      description: '``/v1/reports/{code}`` plus the reporting intelligence endpoints.'
+      tags:
+      - v1
+      security:
+      - tokenAuth: []
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ReportDef'
+          description: ''
+  /api/v1/reports/role-activity/summary/:
+    get:
+      operationId: v1_reports_role_activity_summary_retrieve
+      description: '``/v1/reports/{code}`` plus the reporting intelligence endpoints.'
+      tags:
+      - v1
+      security:
+      - tokenAuth: []
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ReportDef'
+          description: ''
+  /api/v1/reports/top-courses/:
+    get:
+      operationId: v1_reports_top_courses_retrieve
+      description: '``/v1/reports/{code}`` plus the reporting intelligence endpoints.'
+      tags:
+      - v1
+      security:
+      - tokenAuth: []
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ReportDef'
+          description: ''
+  /api/v1/reports/training-records/:
+    get:
+      operationId: v1_reports_training_records_retrieve
+      description: '``/v1/reports/{code}`` plus the reporting intelligence endpoints.'
+      tags:
+      - v1
+      security:
+      - tokenAuth: []
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ReportDef'
+          description: ''
+  /api/v1/reports/year-range/:
+    get:
+      operationId: v1_reports_year_range_retrieve
+      description: '``/v1/reports/{code}`` plus the reporting intelligence endpoints.'
       tags:
       - v1
       security:
@@ -10046,6 +11299,10 @@ paths:
         name: instructor
         schema:
           type: integer
+      - in: query
+        name: module
+        schema:
+          type: integer
       - name: ordering
         required: false
         in: query
@@ -10487,9 +11744,19 @@ paths:
         schema:
           type: integer
       - in: query
+        name: start_date_after
+        schema:
+          type: string
+          format: date
+      - in: query
+        name: start_date_before
+        schema:
+          type: string
+          format: date
+      - in: query
         name: status
         schema:
-          type: integer
+          type: number
       tags:
       - v1
       security:
@@ -10652,6 +11919,70 @@ paths:
       responses:
         '204':
           description: No response body
+  /api/v1/training-records/{id}/resend-cji/:
+    post:
+      operationId: v1_training_records_resend_cji_create
+      description: |-
+        ModelViewSet guarded by :class:`RolePermission`.
+
+        Subclasses set ``required_roles`` / ``write_roles`` (tuples of RoleCode).
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: A unique integer value identifying this training record.
+        required: true
+      tags:
+      - v1
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TrainingRecord'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/TrainingRecord'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/TrainingRecord'
+        required: true
+      security:
+      - tokenAuth: []
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TrainingRecord'
+          description: ''
+  /api/v1/training-records/{id}/workspace/:
+    get:
+      operationId: v1_training_records_workspace_retrieve
+      description: |-
+        ModelViewSet guarded by :class:`RolePermission`.
+
+        Subclasses set ``required_roles`` / ``write_roles`` (tuples of RoleCode).
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: A unique integer value identifying this training record.
+        required: true
+      tags:
+      - v1
+      security:
+      - tokenAuth: []
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TrainingRecord'
+          description: ''
   /api/v1/transaction-logs/:
     get:
       operationId: v1_transaction_logs_list
@@ -10721,6 +12052,103 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/TransactionLog'
+          description: ''
+  /api/v1/user-role:
+    post:
+      operationId: v1_user_role_create
+      description: Axis-compatible ``/user-role`` assignment endpoint.
+      tags:
+      - v1
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Role'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/Role'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/Role'
+        required: true
+      security:
+      - tokenAuth: []
+      - cookieAuth: []
+      responses:
+        '201':
+          description: No response body
+  /api/v1/user-role/{relation_id}/delete:
+    delete:
+      operationId: v1_user_role_delete_destroy
+      parameters:
+      - in: path
+        name: relation_id
+        schema:
+          type: integer
+        required: true
+      tags:
+      - v1
+      security:
+      - tokenAuth: []
+      - cookieAuth: []
+      responses:
+        '204':
+          description: No response body
+  /api/v1/user-role/{user_id}:
+    get:
+      operationId: v1_user_role_retrieve
+      parameters:
+      - in: path
+        name: user_id
+        schema:
+          type: integer
+        required: true
+      tags:
+      - v1
+      security:
+      - tokenAuth: []
+      - cookieAuth: []
+      responses:
+        '200':
+          description: No response body
+    delete:
+      operationId: v1_user_role_destroy
+      parameters:
+      - in: path
+        name: user_id
+        schema:
+          type: integer
+        required: true
+      tags:
+      - v1
+      security:
+      - tokenAuth: []
+      - cookieAuth: []
+      responses:
+        '204':
+          description: No response body
+  /api/v1/user-role/{user_id}/available:
+    get:
+      operationId: v1_user_role_available_list
+      parameters:
+      - in: path
+        name: user_id
+        schema:
+          type: integer
+        required: true
+      tags:
+      - v1
+      security:
+      - tokenAuth: []
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Role'
           description: ''
   /api/v1/users/:
     get:
@@ -10924,6 +12352,28 @@ paths:
       responses:
         '204':
           description: No response body
+  /api/v1/users/{id}/reset-password/:
+    post:
+      operationId: v1_users_reset_password_create
+      description: |-
+        ModelViewSet guarded by :class:`RolePermission`.
+
+        Subclasses set ``required_roles`` / ``write_roles`` (tuples of RoleCode).
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: A unique integer value identifying this user.
+        required: true
+      tags:
+      - v1
+      security:
+      - tokenAuth: []
+      - cookieAuth: []
+      responses:
+        '200':
+          description: No response body
   /api/v1/venues/:
     get:
       operationId: v1_venues_list
@@ -11122,6 +12572,28 @@ paths:
       responses:
         '204':
           description: No response body
+  /api/v1/verify/{identifier}/:
+    get:
+      operationId: v1_verify_retrieve
+      description: Public certificate check by certificate number or training-record
+        id.
+      parameters:
+      - in: path
+        name: identifier
+        schema:
+          type: string
+        required: true
+      tags:
+      - v1
+      security:
+      - {}
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CertificateVerification'
+          description: ''
   /api/v1/webhook-deliveries/:
     get:
       operationId: v1_webhook_deliveries_list
@@ -11518,6 +12990,37 @@ components:
       - entity_id
       - id
       - ip
+    BackupResult:
+      type: object
+      properties:
+        file_name:
+          type: string
+        bytes:
+          type: integer
+        created_at:
+          type: string
+          format: date-time
+      required:
+      - bytes
+      - created_at
+      - file_name
+    BackupTest:
+      type: object
+      properties:
+        status:
+          type: string
+        message:
+          type: string
+        free_bytes:
+          type: integer
+        checked_at:
+          type: string
+          format: date-time
+      required:
+      - checked_at
+      - free_bytes
+      - message
+      - status
     BlankEnum:
       enum:
       - ''
@@ -11542,6 +13045,9 @@ components:
         course_code:
           type: string
           readOnly: true
+        course_id_card:
+          type: boolean
+          readOnly: true
         certificate_no:
           type: string
           readOnly: true
@@ -11549,6 +13055,13 @@ components:
           type: integer
           readOnly: true
           nullable: true
+        source:
+          allOf:
+          - $ref: '#/components/schemas/SourceEnum'
+          readOnly: true
+        opito_learner_id:
+          type: string
+          readOnly: true
         issued_at:
           type: string
           format: date-time
@@ -11635,6 +13148,7 @@ components:
       - batch
       - certificate_no
       - course_code
+      - course_id_card
       - expiry_date
       - format
       - id
@@ -11647,6 +13161,7 @@ components:
       - md_approved_at
       - md_approved_by
       - object_key
+      - opito_learner_id
       - printed_at
       - printed_by
       - released_at
@@ -11655,6 +13170,7 @@ components:
       - seal_object_key
       - signature_applied
       - signature_object_key
+      - source
       - training_record
       - void_reason
       - voided_at
@@ -11765,6 +13281,51 @@ components:
       required:
       - id
       - name
+    CertificateVerification:
+      type: object
+      properties:
+        is_valid:
+          type: boolean
+        status:
+          type: string
+        certificate_no:
+          type: string
+        full_name:
+          type: string
+        course:
+          type: string
+        issued:
+          type: string
+          format: date
+          nullable: true
+        expiry:
+          type: string
+          format: date
+          nullable: true
+      required:
+      - certificate_no
+      - course
+      - expiry
+      - full_name
+      - is_valid
+      - issued
+      - status
+    ChangePassword:
+      type: object
+      properties:
+        current_password:
+          type: string
+          writeOnly: true
+        new_password:
+          type: string
+          writeOnly: true
+        confirm_password:
+          type: string
+          writeOnly: true
+      required:
+      - confirm_password
+      - current_password
+      - new_password
     Company:
       type: object
       properties:
@@ -11912,9 +13473,10 @@ components:
           type: integer
           nullable: true
         expiry_type:
-          type: integer
-          maximum: 32767
+          allOf:
+          - $ref: '#/components/schemas/ExpiryTypeEnum'
           minimum: -32768
+          maximum: 32767
         duration_days:
           type: integer
           maximum: 2147483647
@@ -11932,6 +13494,10 @@ components:
         opito_reg_code:
           type: string
           maxLength: 64
+        front_id_text:
+          type: string
+        back_id_text:
+          type: string
         refresher_course:
           type: integer
           nullable: true
@@ -12040,6 +13606,43 @@ components:
         * `full` - Full
         * `running` - Running
         * `closed` - Closed
+    DailyMedicalCheck:
+      type: object
+      properties:
+        id:
+          type: integer
+          readOnly: true
+        training_record:
+          type: integer
+        check_date:
+          type: string
+          format: date
+        systolic:
+          type: integer
+          maximum: 2147483647
+          minimum: -2147483648
+          nullable: true
+        diastolic:
+          type: integer
+          maximum: 2147483647
+          minimum: -2147483648
+          nullable: true
+        notes:
+          type: string
+        created_at:
+          type: string
+          format: date-time
+          readOnly: true
+        created_by:
+          type: integer
+          readOnly: true
+          nullable: true
+      required:
+      - check_date
+      - created_at
+      - created_by
+      - id
+      - training_record
     DeliveryStatusEnum:
       enum:
       - pending
@@ -12245,6 +13848,16 @@ components:
         * `waitlisted` - Waitlisted
         * `cancelled` - Cancelled
         * `attended` - Attended
+    ExpiryTypeEnum:
+      enum:
+      - 0
+      - 1
+      - 2
+      type: integer
+      description: |-
+        * `0` - No expiry
+        * `1` - Calculated automatically
+        * `2` - FOET expiration date calculation
     ExternalRef:
       type: object
       properties:
@@ -12289,12 +13902,18 @@ components:
           readOnly: true
         learner:
           type: integer
+        learner_name:
+          type: string
+          readOnly: true
         training_record:
           type: integer
           nullable: true
+        course_code:
+          type: string
+          readOnly: true
         card_no:
           type: string
-          maxLength: 64
+          readOnly: true
         printed_at:
           type: string
           format: date-time
@@ -12309,8 +13928,10 @@ components:
           maxLength: 512
       required:
       - card_no
+      - course_code
       - id
       - learner
+      - learner_name
       - printed_at
       - printed_by
     Instructor:
@@ -12715,6 +14336,9 @@ components:
         pertype:
           type: string
           maxLength: 8
+        vantage_id:
+          type: string
+          maxLength: 64
         full_name:
           type: string
           readOnly: true
@@ -12767,15 +14391,13 @@ components:
           $ref: '#/components/schemas/LearnerDocumentKindEnum'
         object_key:
           type: string
-          maxLength: 512
+          readOnly: true
         mime:
           type: string
-          maxLength: 128
+          readOnly: true
         size_bytes:
           type: integer
-          maximum: 9223372036854775807
-          minimum: -9223372036854775808
-          format: int64
+          readOnly: true
         uploaded_at:
           type: string
           format: date-time
@@ -12792,26 +14414,34 @@ components:
       - id
       - kind
       - learner
+      - mime
       - object_key
+      - size_bytes
       - uploaded_at
       - uploaded_by
     LearnerDocumentKindEnum:
       enum:
       - passport
+      - id_scan
       - photo
       - certificate
       - cji
+      - foet_scan
       - medical
       - payment_proof
+      - welcome_letter
       - other
       type: string
       description: |-
         * `passport` - Passport
+        * `id_scan` - ID scan
         * `photo` - Photo
         * `certificate` - Certificate
         * `cji` - Course Joining Instructions
+        * `foet_scan` - FOET scan
         * `medical` - Medical fitness
         * `payment_proof` - Payment proof
+        * `welcome_letter` - Welcome letter
         * `other` - Other
     LearnerTypeEnum:
       enum:
@@ -13082,6 +14712,62 @@ components:
       required:
       - code
       - id
+    OpitoFile:
+      type: object
+      properties:
+        id:
+          type: integer
+          readOnly: true
+        course:
+          type: integer
+        course_code:
+          type: string
+          readOnly: true
+        product_code:
+          type: string
+          readOnly: true
+        start_date:
+          type: string
+          format: date
+        record_count:
+          type: integer
+          maximum: 2147483647
+          minimum: 0
+        object_key:
+          type: string
+          maxLength: 512
+        file_name:
+          type: string
+          readOnly: true
+        fileName:
+          type: string
+          readOnly: true
+        generated_at:
+          type: string
+          format: date-time
+          nullable: true
+        download_url:
+          type: string
+          readOnly: true
+        created_at:
+          type: string
+          format: date-time
+          readOnly: true
+        updated_at:
+          type: string
+          format: date-time
+          readOnly: true
+      required:
+      - course
+      - course_code
+      - created_at
+      - download_url
+      - fileName
+      - file_name
+      - id
+      - product_code
+      - start_date
+      - updated_at
     OutboxEvent:
       type: object
       properties:
@@ -13446,6 +15132,29 @@ components:
           type: array
           items:
             $ref: '#/components/schemas/CourseSession'
+    PaginatedDailyMedicalCheckList:
+      type: object
+      required:
+      - count
+      - results
+      properties:
+        count:
+          type: integer
+          example: 123
+        next:
+          type: string
+          nullable: true
+          format: uri
+          example: http://api.example.org/accounts/?page=4
+        previous:
+          type: string
+          nullable: true
+          format: uri
+          example: http://api.example.org/accounts/?page=2
+        results:
+          type: array
+          items:
+            $ref: '#/components/schemas/DailyMedicalCheck'
     PaginatedDocumentList:
       type: object
       required:
@@ -13791,6 +15500,29 @@ components:
           type: array
           items:
             $ref: '#/components/schemas/NotificationTemplate'
+    PaginatedOpitoFileList:
+      type: object
+      required:
+      - count
+      - results
+      properties:
+        count:
+          type: integer
+          example: 123
+        next:
+          type: string
+          nullable: true
+          format: uri
+          example: http://api.example.org/accounts/?page=4
+        previous:
+          type: string
+          nullable: true
+          format: uri
+          example: http://api.example.org/accounts/?page=2
+        results:
+          type: array
+          items:
+            $ref: '#/components/schemas/OpitoFile'
     PaginatedOutboxEventList:
       type: object
       required:
@@ -14521,9 +16253,10 @@ components:
           type: integer
           nullable: true
         expiry_type:
-          type: integer
-          maximum: 32767
+          allOf:
+          - $ref: '#/components/schemas/ExpiryTypeEnum'
           minimum: -32768
+          maximum: 32767
         duration_days:
           type: integer
           maximum: 2147483647
@@ -14541,6 +16274,10 @@ components:
         opito_reg_code:
           type: string
           maxLength: 64
+        front_id_text:
+          type: string
+        back_id_text:
+          type: string
         refresher_course:
           type: integer
           nullable: true
@@ -14616,6 +16353,37 @@ components:
           type: string
           format: date-time
           readOnly: true
+    PatchedDailyMedicalCheck:
+      type: object
+      properties:
+        id:
+          type: integer
+          readOnly: true
+        training_record:
+          type: integer
+        check_date:
+          type: string
+          format: date
+        systolic:
+          type: integer
+          maximum: 2147483647
+          minimum: -2147483648
+          nullable: true
+        diastolic:
+          type: integer
+          maximum: 2147483647
+          minimum: -2147483648
+          nullable: true
+        notes:
+          type: string
+        created_at:
+          type: string
+          format: date-time
+          readOnly: true
+        created_by:
+          type: integer
+          readOnly: true
+          nullable: true
     PatchedDocument:
       type: object
       properties:
@@ -14797,12 +16565,18 @@ components:
           readOnly: true
         learner:
           type: integer
+        learner_name:
+          type: string
+          readOnly: true
         training_record:
           type: integer
           nullable: true
+        course_code:
+          type: string
+          readOnly: true
         card_no:
           type: string
-          maxLength: 64
+          readOnly: true
         printed_at:
           type: string
           format: date-time
@@ -14948,6 +16722,9 @@ components:
         pertype:
           type: string
           maxLength: 8
+        vantage_id:
+          type: string
+          maxLength: 64
         full_name:
           type: string
           readOnly: true
@@ -14989,15 +16766,13 @@ components:
           $ref: '#/components/schemas/LearnerDocumentKindEnum'
         object_key:
           type: string
-          maxLength: 512
+          readOnly: true
         mime:
           type: string
-          maxLength: 128
+          readOnly: true
         size_bytes:
           type: integer
-          maximum: 9223372036854775807
-          minimum: -9223372036854775808
-          format: int64
+          readOnly: true
         uploaded_at:
           type: string
           format: date-time
@@ -15511,6 +17286,16 @@ components:
           type: integer
         instructor:
           type: integer
+        module:
+          type: integer
+          nullable: true
+        module_name:
+          type: string
+          readOnly: true
+        training_date:
+          type: string
+          format: date
+          nullable: true
     PatchedTrainingItem:
       type: object
       properties:
@@ -15543,8 +17328,14 @@ components:
         badge_no:
           type: string
           readOnly: true
+        company_name:
+          type: string
+          readOnly: true
         course:
           type: integer
+        course_name:
+          type: string
+          readOnly: true
         course_code:
           type: string
           readOnly: true
@@ -15579,10 +17370,29 @@ components:
         instructor:
           type: string
           maxLength: 150
+        foet_scan:
+          type: integer
+          nullable: true
+        payment_proof:
+          type: integer
+          nullable: true
+        welcome_letter:
+          type: integer
+          nullable: true
         items:
           type: array
           items:
             $ref: '#/components/schemas/TrainingItem'
+          readOnly: true
+        training_instructors:
+          type: array
+          items:
+            $ref: '#/components/schemas/TrainingInstructor'
+          readOnly: true
+        medical_checks:
+          type: array
+          items:
+            $ref: '#/components/schemas/DailyMedicalCheck'
           readOnly: true
         created_at:
           type: string
@@ -15610,6 +17420,9 @@ components:
         last_name:
           type: string
           maxLength: 150
+        full_name:
+          type: string
+          readOnly: true
         email:
           title: Email address
           oneOf:
@@ -16198,6 +18011,22 @@ components:
       - first_name
       - last_name
       - password
+    RelationCreate:
+      type: object
+      description: Documented object form; Axis-style pair arrays are also accepted.
+      properties:
+        parent:
+          type: integer
+        children:
+          type: array
+          items:
+            type: integer
+        pairs:
+          type: array
+          items:
+            type: array
+            items:
+              type: integer
     ReportDef:
       type: object
       properties:
@@ -16302,6 +18131,14 @@ components:
       description: |-
         * `M` - Male
         * `F` - Female
+    SourceEnum:
+      enum:
+      - generated
+      - uploaded
+      type: string
+      description: |-
+        * `generated` - Generated
+        * `uploaded` - Uploaded
     State:
       type: object
       properties:
@@ -16510,9 +18347,20 @@ components:
           type: integer
         instructor:
           type: integer
+        module:
+          type: integer
+          nullable: true
+        module_name:
+          type: string
+          readOnly: true
+        training_date:
+          type: string
+          format: date
+          nullable: true
       required:
       - id
       - instructor
+      - module_name
       - training_record
     TrainingItem:
       type: object
@@ -16550,8 +18398,14 @@ components:
         badge_no:
           type: string
           readOnly: true
+        company_name:
+          type: string
+          readOnly: true
         course:
           type: integer
+        course_name:
+          type: string
+          readOnly: true
         course_code:
           type: string
           readOnly: true
@@ -16586,10 +18440,29 @@ components:
         instructor:
           type: string
           maxLength: 150
+        foet_scan:
+          type: integer
+          nullable: true
+        payment_proof:
+          type: integer
+          nullable: true
+        welcome_letter:
+          type: integer
+          nullable: true
         items:
           type: array
           items:
             $ref: '#/components/schemas/TrainingItem'
+          readOnly: true
+        training_instructors:
+          type: array
+          items:
+            $ref: '#/components/schemas/TrainingInstructor'
+          readOnly: true
+        medical_checks:
+          type: array
+          items:
+            $ref: '#/components/schemas/DailyMedicalCheck'
           readOnly: true
         created_at:
           type: string
@@ -16601,16 +18474,20 @@ components:
           readOnly: true
       required:
       - badge_no
+      - company_name
       - course
       - course_code
+      - course_name
       - created_at
       - id
       - items
       - learner
       - learner_name
+      - medical_checks
       - reject_reason
       - status
       - status_code
+      - training_instructors
       - updated_at
     TransactionLog:
       type: object
@@ -16684,6 +18561,9 @@ components:
         last_name:
           type: string
           maxLength: 150
+        full_name:
+          type: string
+          readOnly: true
         email:
           title: Email address
           oneOf:
@@ -16714,6 +18594,7 @@ components:
             type: string
           readOnly: true
       required:
+      - full_name
       - id
       - role_codes
       - username

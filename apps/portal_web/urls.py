@@ -7,6 +7,12 @@ app_name = "portal_web"
 
 urlpatterns = [
     path("", views.landing, name="landing"),
+    path("verify/", views.verify_certificate, name="verify-certificate"),
+    path(
+        "verify/<str:identifier>/",
+        views.verify_certificate,
+        name="verify-certificate-detail",
+    ),
     path("register/", views.register, name="register"),
     path("registered/", views.registered, name="registered"),
     path("verify-email/", views.verify_email, name="verify-email"),
@@ -27,6 +33,18 @@ urlpatterns = [
         name="resend-verification-page",
     ),
     path("dashboard/", views.dashboard, name="dashboard"),
+    path("profile/", views.profile, name="profile"),
+    path("corporate/", views.corporate, name="corporate"),
+    path(
+        "corporate/nominees/<int:pk>/edit/",
+        views.nominee_edit,
+        name="corporate-nominee-edit",
+    ),
+    path(
+        "corporate/nominees/<int:pk>/remove/",
+        views.nominee_remove,
+        name="corporate-nominee-remove",
+    ),
     path(
         "certificates/<int:pk>/download/",
         views.certificate_download,

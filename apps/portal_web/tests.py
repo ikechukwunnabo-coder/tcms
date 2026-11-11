@@ -1,6 +1,7 @@
 """Public portal (web) — registration, verification, sign-in, dashboard tests."""
 import re
-from datetime import date
+from datetime import date, timedelta
+from unittest.mock import patch
 
 from django.core import mail
 from django.core.cache import cache
@@ -11,6 +12,7 @@ from django.utils import timezone
 
 from apps.accounts.models import User
 from apps.audit.models import AuditEvent
+from apps.billing.models import CorporateAccount
 from apps.catalogue.models import Course
 from apps.certification.models import Certificate
 from apps.common.enums import BookingState, EnrolmentStatus, SessionStatus
@@ -72,6 +74,72 @@ class PublicPageTests(TestCase):
     def test_resend_page_renders(self):
         response = self.client.get(reverse("portal_web:resend-verification-page"))
         self.assertEqual(response.status_code, 200)
+
+
+class CertificateVerificationPageTests(TestCase):
+    @classmethod
+    def setUpTestData(cls):
+        call_command("seed_roles", verbosity=0)
+        call_command("seed_data", verbosity=0)
+        cls.course = Course.objects.get(course_code="FIRST-AID")
+        cls.learner = Learner.objects.create(
+            badge_no="PVER01",
+            surname="Bello",
+            first_name="Amina",
+            birth_date=date(1991, 3, 4),
+        )
+        cls.record = TrainingRecord.objects.create(
+            learner=cls.learner,
+            course=cls.course,
+            status=WorkflowStatus.objects.get(pk=9),
+            start_date=date(2026, 1, 13),
+        )
+        cls.certificate = Certificate.objects.create(
+            training_record=cls.record,
+            learner=cls.learner,
+            certificate_no="T2600101",
+            issued_at=timezone.now(),
+            expiry_date=date.today() + timedelta(days=365),
+        )
+
+    def test_verification_page_is_public(self):
+        response = self.client.get(reverse("portal_web:verify-certificate"))
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Verify a training certificate")
+        self.assertContains(response, "Certificate registry")
+
+    def test_verification_page_shows_valid_certificate(self):
+        response = self.client.get(
+            reverse("portal_web:verify-certificate"),
+            {"identifier": "T2600101"},
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Certificate is valid")
+        self.assertContains(response, self.learner.full_name)
+        self.assertContains(response, self.course.name)
+
+    def test_verification_page_accepts_training_record_id(self):
+        response = self.client.get(
+            reverse("portal_web:verify-certificate-detail", args=[self.record.pk])
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "T2600101")
+
+    def test_unknown_certificate_is_reported(self):
+        response = self.client.get(
+            reverse("portal_web:verify-certificate"),
+            {"identifier": "UNKNOWN"},
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Certificate not found")
+
+    @override_settings(PORTAL_VERIFY_RATE_LIMIT=1)
+    def test_verification_is_rate_limited(self):
+        url = reverse("portal_web:verify-certificate")
+        self.client.get(url, {"identifier": "T2600101"})
+        response = self.client.get(url, {"identifier": "T2600101"})
+        self.assertEqual(response.status_code, 429)
+        self.assertContains(response, "Please try again shortly", status_code=429)
 
 
 class RegistrationFlowTests(TestCase):
@@ -317,6 +385,38 @@ class LoginTests(TestCase):
         self.assertContains(response, "verify your email")
         self.assertNotIn("_auth_user_id", self.client.session)
 
+    def test_staff_account_without_portal_account_is_rejected(self):
+        User.objects.create_user(
+            "staffer", email="staff@example.com", password="strongpass123"
+        )
+        response = self.client.post(
+            reverse("portal_web:login"),
+            {"email": "staff@example.com", "password": "strongpass123"},
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Staff should sign in through the staff console")
+        self.assertNotIn("_auth_user_id", self.client.session)
+        self.assertTrue(
+            AuditEvent.objects.filter(action="auth.portal_access_denied").exists()
+        )
+
+    @override_settings(STAFF_APP_URL="https://staff.example.test")
+    def test_authenticated_staff_are_sent_to_the_staff_console(self):
+        staff = User.objects.create_user(
+            "staffer", email="staff@example.com", password="strongpass123"
+        )
+        self.client.force_login(staff)
+        response = self.client.get(reverse("portal_web:login"))
+        self.assertEqual(response.url, "https://staff.example.test")
+        response = self.client.get(reverse("portal_web:dashboard"))
+        self.assertEqual(response.url, "https://staff.example.test")
+
+    @override_settings(STAFF_APP_URL="https://staff.example.test")
+    def test_staff_sign_in_link_points_to_the_staff_console(self):
+        response = self.client.get(reverse("portal_web:login"))
+        self.assertContains(response, 'href="https://staff.example.test"')
+        self.assertNotContains(response, 'href="/admin/"')
+
     def test_dashboard_requires_login(self):
         response = self.client.get(reverse("portal_web:dashboard"))
         self.assertEqual(response.status_code, 302)
@@ -472,3 +572,125 @@ class DashboardTests(TestCase):
         self.client.force_login(other_user)
         response = self.client.get(reverse("portal_web:booking-cji", args=[self.enrolment.pk]))
         self.assertEqual(response.status_code, 403)
+
+
+class ProfileAndCorporatePortalTests(TestCase):
+    def setUp(self):
+        call_command("seed_data", verbosity=0)
+        self.user = User.objects.create_user(
+            "lead", email="lead@example.com", password="strongpass123",
+            email_verified=True, first_name="Old", last_name="Name",
+        )
+        self.learner = Learner.objects.create(
+            badge_no="WEB9", surname="Name", first_name="Old",
+            birth_date=date(1990, 1, 1),
+        )
+        self.account = PortalAccount.objects.create(
+            user=self.user, learner=self.learner
+        )
+        self.client.force_login(self.user)
+
+    def test_profile_updates_user_and_learner_names(self):
+        response = self.client.post(
+            reverse("portal_web:profile"),
+            {
+                "surname": "Okafor",
+                "first_name": "Ada",
+                "middle_name": "N",
+                "sex": "F",
+                "birth_date": "1991-04-05",
+            },
+        )
+        self.assertEqual(response.status_code, 302)
+        self.learner.refresh_from_db()
+        self.user.refresh_from_db()
+        self.assertEqual(self.learner.surname, "Okafor")
+        self.assertEqual(self.learner.first_name, "Ada")
+        self.assertEqual(self.learner.sex, "F")
+        self.assertEqual(str(self.learner.birth_date), "1991-04-05")
+        self.assertEqual(self.user.last_name, "Okafor")
+        self.assertEqual(self.user.first_name, "Ada")
+        self.assertTrue(AuditEvent.objects.filter(action="portal.profile_updated").exists())
+
+    def test_profile_rejects_underage_birth_date(self):
+        response = self.client.post(
+            reverse("portal_web:profile"),
+            {"surname": "Name", "first_name": "Old", "birth_date": "2015-01-01"},
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "18 or older")
+        self.learner.refresh_from_db()
+        self.assertEqual(str(self.learner.birth_date), "1990-01-01")
+
+    def test_lead_can_create_account_add_edit_and_remove_nominee(self):
+        account_less = User.objects.create_user(
+            "newlead", email="newlead@example.com", password="strongpass123",
+            email_verified=True,
+        )
+        PortalAccount.objects.create(user=account_less)
+        self.client.force_login(account_less)
+        response = self.client.post(
+            reverse("portal_web:corporate"),
+            {"name": "New Corp", "terms_days": 30},
+        )
+        self.assertEqual(response.status_code, 302)
+        account = CorporateAccount.objects.get(lead_user=account_less)
+        self.assertEqual(account.name, "New Corp")
+
+        response = self.client.post(
+            reverse("portal_web:corporate"),
+            {
+                "action": "add-nominee",
+                "surname": "Bello",
+                "first_name": "Amina",
+                "birth_date": "1992-02-03",
+                "sex": "F",
+            },
+        )
+        self.assertEqual(response.status_code, 302)
+        nominee = Learner.objects.get(corporate_account=account, surname="Bello")
+        self.assertEqual(nominee.first_name, "Amina")
+
+        response = self.client.post(
+            reverse("portal_web:corporate-nominee-edit", args=[nominee.pk]),
+            {
+                "surname": "Bello",
+                "first_name": "Amina",
+                "middle_name": "Z",
+                "birth_date": "1992-02-03",
+            },
+        )
+        self.assertEqual(response.status_code, 302)
+        nominee.refresh_from_db()
+        self.assertEqual(nominee.middle_name, "Z")
+
+        response = self.client.post(
+            reverse("portal_web:corporate-nominee-remove", args=[nominee.pk])
+        )
+        self.assertEqual(response.status_code, 302)
+        self.assertFalse(Learner.objects.filter(pk=nominee.pk).exists())
+
+    def test_corporate_view_requires_lead_and_lists_workspace(self):
+        account = CorporateAccount.objects.create(
+            name="Acme", lead_user=self.user, lead_email=self.user.email
+        )
+        self.account.corporate_account = account
+        self.account.save(update_fields=["corporate_account"])
+        response = self.client.get(reverse("portal_web:corporate"))
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Corporate workspace")
+        self.assertContains(response, "Acme")
+        self.assertContains(response, "Add a nominee")
+
+    @patch("apps.portal_web.views.cert_service.bundle_for_account")
+    def test_bundle_action_calls_certificate_service(self, bundle):
+        account = CorporateAccount.objects.create(
+            name="Acme", lead_user=self.user, lead_email=self.user.email
+        )
+        self.account.corporate_account = account
+        self.account.save(update_fields=["corporate_account"])
+        response = self.client.post(
+            reverse("portal_web:corporate"), {"action": "bundle"}
+        )
+        self.assertEqual(response.status_code, 302)
+        bundle.assert_called_once()

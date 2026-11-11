@@ -1,5 +1,6 @@
 from rest_framework import serializers
 
+from apps.common.enums import DocumentKind
 from apps.learners.models import Learner, LearnerContact, LearnerDocument
 
 
@@ -16,7 +17,16 @@ class LearnerDocumentSerializer(serializers.ModelSerializer):
             "id", "learner", "kind", "object_key", "mime", "size_bytes",
             "uploaded_at", "uploaded_by", "verified_at",
         ]
-        read_only_fields = ["id", "uploaded_at", "uploaded_by"]
+        read_only_fields = [
+            "id", "object_key", "mime", "size_bytes", "uploaded_at",
+            "uploaded_by",
+        ]
+
+
+class LearnerDocumentUploadSerializer(serializers.Serializer):
+    learner = serializers.PrimaryKeyRelatedField(queryset=Learner.objects.all())
+    kind = serializers.ChoiceField(choices=DocumentKind.choices)
+    file = serializers.FileField()
 
 
 class LearnerSerializer(serializers.ModelSerializer):
@@ -29,6 +39,6 @@ class LearnerSerializer(serializers.ModelSerializer):
         fields = [
             "id", "badge_no", "surname", "first_name", "middle_name", "sex",
             "birth_date", "nationality", "state", "position", "company", "title",
-            "active", "pertype", "full_name", "contacts", "documents",
+            "active", "pertype", "vantage_id", "full_name", "contacts", "documents",
         ]
         read_only_fields = ["id", "full_name"]

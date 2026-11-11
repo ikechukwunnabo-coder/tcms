@@ -126,3 +126,13 @@ class RenewalRequestSerializer(serializers.Serializer):
 class RenewalResultSerializer(serializers.Serializer):
     training_record_id = serializers.IntegerField()
     enrolment_id = serializers.IntegerField(required=False, allow_null=True)
+
+
+class CertificateVerificationSerializer(serializers.Serializer):
+    is_valid = serializers.BooleanField()
+    status = serializers.CharField()
+    certificate_no = serializers.CharField()
+    full_name = serializers.CharField()
+    course = serializers.CharField()
+    issued = serializers.DateField(allow_null=True)
+    expiry = serializers.DateField(allow_null=True)

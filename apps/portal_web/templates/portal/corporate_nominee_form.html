@@ -1,0 +1,32 @@
+{% extends "portal/base.html" %}
+{% block title %}Edit nominee — TASL Training Centre Portal{% endblock %}
+
+{% block content %}
+<section class="shell narrow">
+  <div class="panel">
+    <p class="eyebrow">{{ account.name }}</p>
+    <h1>Edit {{ learner.full_name }}</h1>
+    <p class="panel-lede">Badge {{ learner.badge_no }}. Changes apply to future bookings and certificates.</p>
+
+    <form method="post" novalidate>
+      {% csrf_token %}
+      {% if form.non_field_errors %}
+        <div class="alert alert-error" role="alert">{{ form.non_field_errors }}</div>
+      {% endif %}
+      {% for field in form %}
+        <div class="field">
+          <label for="{{ field.id_for_label }}">{{ field.label }}</label>
+          {{ field }}
+          {% for error in field.errors %}
+            <p class="field-error" id="{{ field.id_for_label }}_error">{{ error }}</p>
+          {% endfor %}
+        </div>
+      {% endfor %}
+      <div class="form-actions">
+        <button type="submit" class="btn btn-primary">Save nominee</button>
+        <a class="btn btn-ghost" href="{% url 'portal_web:corporate' %}">Cancel</a>
+      </div>
+    </form>
+  </div>
+</section>
+{% endblock %}

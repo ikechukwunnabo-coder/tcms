@@ -2,14 +2,21 @@ import { useQuery } from "@tanstack/react-query";
 import {
   Activity,
   Award,
+  BarChart3,
   CalendarDays,
   ClipboardList,
   Download,
+  GitBranch,
+  LayoutGrid,
   ReceiptText,
+  Sparkles,
   Stethoscope,
+  TrendingUp,
+  UserRoundCheck,
   Users,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
+import { Link } from "react-router-dom";
 import { getList, request } from "../api/client";
 import type { Dashboard, ReportDef } from "../api/types";
 import { useAuth } from "../auth/context";
@@ -101,6 +108,64 @@ const DATASETS: Dataset[] = [
   },
 ];
 
+interface ReportCard {
+  dataset: string;
+  label: string;
+  description: string;
+  icon: LucideIcon;
+}
+
+const REPORT_CARDS: ReportCard[] = [
+  {
+    dataset: "training-records",
+    label: "Training records",
+    description: "Every delegate, course, delivery window and certificate expiry in one ledger.",
+    icon: Sparkles,
+  },
+  {
+    dataset: "course-by-month",
+    label: "Courses by month",
+    description: "Course delivery volume by month, with a year selector for trend review.",
+    icon: BarChart3,
+  },
+  {
+    dataset: "learner-by-month",
+    label: "Delegates by month",
+    description: "Distinct delegates trained each month to track throughput and seasonality.",
+    icon: Users,
+  },
+  {
+    dataset: "top-training-courses",
+    label: "Top training courses",
+    description: "The ten busiest courses for a year, ranked by recorded deliveries.",
+    icon: TrendingUp,
+  },
+  {
+    dataset: "courses-treemap",
+    label: "Course mix",
+    description: "A certificate-type treemap showing where delivery effort is concentrated.",
+    icon: LayoutGrid,
+  },
+  {
+    dataset: "role-activity",
+    label: "Role activity",
+    description: "Completed workflow steps by role, period and person for accountability.",
+    icon: UserRoundCheck,
+  },
+  {
+    dataset: "opito-monthly",
+    label: "OPITO monthly",
+    description: "OPITO course deliveries and learner identifiers for invoice reconciliation.",
+    icon: Award,
+  },
+  {
+    dataset: "flow-status",
+    label: "Flow status",
+    description: "Terminal and active split with backlog and critical workload thresholds.",
+    icon: GitBranch,
+  },
+];
+
 export function ReportsPage() {
   const { user } = useAuth();
   const dashboard = useQuery({
@@ -169,8 +234,35 @@ export function ReportsPage() {
       </div>
 
       <Card
+        title="Reporting intelligence"
+        aside={<span className="card-note">Axis parity A· live data</span>}
+      >
+        <div className="report-grid">
+          {REPORT_CARDS.map((report) => {
+            const Icon = report.icon;
+            return (
+              <Link
+                className="report-card"
+                key={report.dataset}
+                to={`/reports/${report.dataset}`}
+              >
+                <span className="report-icon">
+                  <Icon size={19} aria-hidden="true" />
+                </span>
+                <span className="report-card-body">
+                  <strong>{report.label}</strong>
+                  <small>{report.description}</small>
+                </span>
+                <span className="report-open">Open report</span>
+              </Link>
+            );
+          })}
+        </div>
+      </Card>
+
+      <Card
         title="Operational exports"
-        aside={<span className="card-note">CSV · live data</span>}
+        aside={<span className="card-note">CSV A� live data</span>}
       >
         <div className="export-grid">
           {available.map((dataset) => {

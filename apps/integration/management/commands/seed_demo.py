@@ -26,7 +26,7 @@ from django.utils import timezone
 from apps.accounts.models import Role
 from apps.billing import services as billing_service
 from apps.billing.models import CorporateAccount, Invoice, InvoiceSequence
-from apps.catalogue.models import Course, CourseItem
+from apps.catalogue.models import Course, CourseItem, CourseModule
 from apps.certification import services as cert_service
 from apps.certification.models import IDCard
 from apps.common.enums import (
@@ -40,7 +40,12 @@ from apps.common.enums import (
     Sex,
     WorkflowStatusCode,
 )
-from apps.delivery.models import TrainingInstructor, TrainingItem, TrainingRecord
+from apps.delivery.models import (
+    DailyMedicalCheck,
+    TrainingInstructor,
+    TrainingItem,
+    TrainingRecord,
+)
 from apps.delivery.services import compute_expiry, compute_start_date
 from apps.integration.models import SeedMarker
 from apps.learners.models import Learner, LearnerContact, LearnerDocument
@@ -309,6 +314,7 @@ class Command(BaseCommand):
                     if corporate
                     else individual,
                     "active": True,
+                    "vantage_id": f"VAN{1000 + i:05d}",
                 },
             )
             if created:
@@ -355,6 +361,7 @@ class Command(BaseCommand):
     def _records(self, sessions, learners, instructors, admin):
         courses = list(Course.objects.order_by("course_code"))
         items = list(CourseItem.objects.order_by("id"))
+        modules = list(CourseModule.objects.order_by("id"))
         new_status = WorkflowStatus.objects.get(pk=WorkflowStatusCode.NEW_RECORD)
         results = []
         for i, target in enumerate(TARGETS):
@@ -383,8 +390,24 @@ class Command(BaseCommand):
                         score=70 + (i % 25),
                     )
                 TrainingInstructor.objects.create(
-                    training_record=record, instructor=instructors[i % len(instructors)]
+                    training_record=record,
+                    instructor=instructors[i % len(instructors)],
+                    module=modules[i % len(modules)] if modules else None,
+                    training_date=start,
                 )
+                if start:
+                    for offset, systolic, diastolic in (
+                        (0, 118 + (i % 10), 76 + (i % 8)),
+                        (1, 120 + (i % 8), 78 + (i % 6)),
+                    ):
+                        DailyMedicalCheck.objects.create(
+                            training_record=record,
+                            check_date=start + timedelta(days=offset),
+                            systolic=systolic,
+                            diastolic=diastolic,
+                            notes="Routine course medical check.",
+                            created_by=admin,
+                        )
             self._drive(record, admin, int(target))
             results.append(record)
         return results

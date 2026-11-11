@@ -1,15 +1,34 @@
+from datetime import date
 from io import BytesIO
 
+from django.core.exceptions import SuspiciousFileOperation
+from django.core.files.storage import default_storage
 from django.http import FileResponse, HttpResponse
 from django.shortcuts import get_object_or_404
 from django.utils.text import get_valid_filename
-from rest_framework.decorators import action
+from drf_spectacular.utils import extend_schema
+from rest_framework import status, viewsets
+from rest_framework.decorators import (
+    action,
+    api_view,
+    authentication_classes,
+    permission_classes,
+    throttle_classes,
+)
+from rest_framework.exceptions import ValidationError
+from rest_framework.permissions import AllowAny
 from rest_framework.response import Response
+from rest_framework.throttling import AnonRateThrottle
 
+from apps.certification import opito
+from apps.certification import opito_serializers as os
 from apps.certification import serializers as s
 from apps.certification import services as cert_service
-from apps.certification.models import Certificate, CertificateSequence, IDCard
+from apps.certification.models import Certificate, CertificateSequence, IDCard, OpitoFile
+from apps.certification.verification import CertificateVerificationNotFound
+from apps.certification.verification import verify_certificate as verify_certificate_record
 from apps.common.enums import RoleCode
+from apps.common.permissions import RolePermission
 from apps.common.views import RoleScopedModelViewSet, RoleScopedReadOnlyModelViewSet
 from apps.delivery.models import TrainingRecord
 
@@ -25,6 +44,27 @@ READ = (
 WRITE = (RoleCode.SYSTEM_ADMIN, RoleCode.ADMIN, RoleCode.PRINTER)
 MD = (RoleCode.SYSTEM_ADMIN, RoleCode.MD)
 ADMIN = (RoleCode.SYSTEM_ADMIN, RoleCode.ADMIN)
+
+
+class CertificateVerifyThrottle(AnonRateThrottle):
+    scope = "verify"
+
+
+@extend_schema(responses={200: s.CertificateVerificationSerializer})
+@api_view(["GET"])
+@authentication_classes([])
+@throttle_classes([CertificateVerifyThrottle])
+@permission_classes([AllowAny])
+def verify_certificate(request, identifier):
+    """Public certificate check by certificate number or training-record id."""
+    try:
+        result = verify_certificate_record(identifier)
+    except CertificateVerificationNotFound:
+        return Response(
+            {"error": "not_found", "message": "Certificate not found."},
+            status=status.HTTP_404_NOT_FOUND,
+        )
+    return Response(s.CertificateVerificationSerializer(result).data)
 
 
 def _pdf_response(data: bytes, filename: str, *, head: bool = False):
@@ -210,3 +250,106 @@ class IDCardViewSet(RoleScopedModelViewSet):
         cert_service.generate_id_card_document(card, actor=request.user)
         card.refresh_from_db()
         return Response(s.IDCardSerializer(card).data)
+
+
+class OpitoFileViewSet(viewsets.GenericViewSet):
+    """OPITO CSV cohorts: list, validate, preview content, generate and download."""
+
+    queryset = OpitoFile.objects.select_related("course")
+    serializer_class = os.OpitoFileSerializer
+    permission_classes = [RolePermission]
+    required_roles = READ
+    write_roles = WRITE
+
+    @staticmethod
+    def _cohort_params(request):
+        raw_course = request.query_params.get("course")
+        raw_date = request.query_params.get("start_date") or request.query_params.get("date")
+        if raw_course in (None, ""):
+            raise ValidationError({"course": "This query parameter is required."})
+        if raw_date in (None, ""):
+            raise ValidationError({"start_date": "This query parameter is required."})
+        try:
+            course_id = int(raw_course)
+        except (TypeError, ValueError) as exc:
+            raise ValidationError({"course": "A valid course id is required."}) from exc
+        try:
+            start_date = date.fromisoformat(raw_date)
+        except (TypeError, ValueError) as exc:
+            raise ValidationError({"start_date": "Use YYYY-MM-DD."}) from exc
+        try:
+            course = opito.get_opito_course(course_id)
+        except opito.OpitoCohortError as exc:
+            raise ValidationError({"course": str(exc)}) from exc
+        return course, start_date
+
+    def _cohort_response(self):
+        rows = opito.opito_cohorts()
+        data = os.OpitoCohortSerializer(rows, many=True).data
+        return Response({"data": data, "total": len(data)})
+
+    def list(self, request):
+        return self._cohort_response()
+
+    @action(detail=False, methods=["get"], url_path="file")
+    def file(self, request):
+        return self._cohort_response()
+
+    @action(detail=False, methods=["get"], url_path="validate-vantage")
+    def validate_vantage(self, request):
+        course, start_date = self._cohort_params(request)
+        missing = opito.missing_vantage_ids(course, start_date)
+        return Response(
+            os.OpitoValidateSerializer(
+                {"valid": not missing, "missingVantageIds": missing}
+            ).data
+        )
+
+    @action(detail=False, methods=["get"])
+    def content(self, request):
+        course, start_date = self._cohort_params(request)
+        try:
+            rows = opito.opito_rows(course, start_date)
+        except opito.OpitoCohortError as exc:
+            raise ValidationError(str(exc)) from exc
+        data = os.OpitoContentRowSerializer(rows, many=True).data
+        return Response(os.OpitoContentSerializer({"rows": data, "count": len(data)}).data)
+
+    @action(detail=False, methods=["post"])
+    def generate(self, request):
+        payload = os.OpitoGenerateSerializer(data=request.data)
+        payload.is_valid(raise_exception=True)
+        try:
+            course = opito.get_opito_course(payload.validated_data["course"])
+            generated = opito.generate_opito_file(
+                course,
+                payload.validated_data["start_date"],
+                actor=request.user,
+            )
+        except opito.OpitoCohortError as exc:
+            raise ValidationError(str(exc)) from exc
+        return Response(
+            os.OpitoFileSerializer(generated, context={"request": request}).data,
+            status=status.HTTP_201_CREATED,
+        )
+
+    @action(detail=False, methods=["post"], url_path="csv")
+    def csv(self, request):
+        return self.generate(request)
+
+    @action(detail=True, methods=["get"])
+    def download(self, request, pk=None):
+        generated = self.get_object()
+        if not generated.object_key:
+            raise ValidationError({"detail": "No CSV has been generated for this cohort."})
+        try:
+            handle = default_storage.open(generated.object_key, "rb")
+        except (FileNotFoundError, SuspiciousFileOperation, OSError) as exc:
+            raise ValidationError({"detail": "The generated CSV is no longer available."}) from exc
+        filename = f"OPITO_{generated.course.course_code}_{generated.start_date.isoformat()}.csv"
+        return FileResponse(
+            handle,
+            content_type="text/csv",
+            as_attachment=True,
+            filename=filename,
+        )

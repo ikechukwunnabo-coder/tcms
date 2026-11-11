@@ -111,6 +111,14 @@ export async function request<T>(
   return (await response.json()) as T;
 }
 
+export async function requestPublic<T>(path: string): Promise<T> {
+  const response = await fetch(url(path), {
+    headers: { Accept: "application/json" },
+  });
+  if (!response.ok) throw await parseError(response);
+  return (await response.json()) as T;
+}
+
 export function getList<T>(path: string, params?: Query) {
   return request<Paginated<T>>(path, { params });
 }
@@ -134,16 +142,25 @@ export async function logout() {
   }
 }
 
-export async function downloadCsv(dataset: string, params?: Query) {
+export type ExportFormat = "csv" | "xlsx" | "pdf";
+
+export async function downloadReport(
+  dataset: string,
+  format: ExportFormat = "csv",
+  params?: Query,
+) {
   const session = sessionStore.load();
-  const response = await fetch(url("reports/export/", { dataset, ...params }), {
-    headers: session ? { Authorization: `Token ${session.token}` } : {},
-  });
+  const response = await fetch(
+    url("reports/export/", { dataset, format, ...params }),
+    {
+      headers: session ? { Authorization: `Token ${session.token}` } : {},
+    },
+  );
   if (!response.ok) throw await parseError(response);
   const blob = await response.blob();
   const disposition = response.headers.get("Content-Disposition") ?? "";
-  const match = disposition.match(/filename="?([^"]+)"?/);
-  const name = match?.[1] ?? `tcms-${dataset}.csv`;
+  const match = disposition.match(/filename="?([^"']+)"?/);
+  const name = match?.[1] ?? `tcms-${dataset}.${format}`;
   const href = URL.createObjectURL(blob);
   const anchor = document.createElement("a");
   anchor.href = href;
@@ -152,6 +169,10 @@ export async function downloadCsv(dataset: string, params?: Query) {
   anchor.click();
   anchor.remove();
   URL.revokeObjectURL(href);
+}
+
+export function downloadCsv(dataset: string, params?: Query) {
+  return downloadReport(dataset, "csv", params);
 }
 
 export async function downloadFile(path: string, filename: string) {

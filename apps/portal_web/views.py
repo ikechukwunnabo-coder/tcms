@@ -28,17 +28,22 @@ from django.views.decorators.http import require_http_methods, require_POST
 
 from apps.audit.services import write_audit
 from apps.certification import services as cert_service
-from apps.certification.exceptions import CertificateDocumentMissing
+from apps.certification.exceptions import BatchError, CertificateDocumentMissing
 from apps.certification.models import Certificate
+from apps.certification.verification import CertificateVerificationNotFound
+from apps.certification.verification import verify_certificate as verify_certificate_record
 from apps.common.net import client_ip
-from apps.learners.services import AgeError
+from apps.learners.services import AgeError, assert_min_age
 from apps.portal import cji as cji_svc
 from apps.portal import services as portal_svc
 from apps.portal.models import JoiningInstruction, PortalAccount
 from apps.portal.services import EmailTaken, InvalidToken, TokenExpired, WeakPassword
 from apps.portal_web.forms import (
+    CorporateAccountForm,
     LoginForm,
+    NomineeForm,
     PasswordResetRequestForm,
+    ProfileForm,
     RegisterForm,
     SetNewPasswordForm,
 )
@@ -48,6 +53,14 @@ User = get_user_model()
 
 AUTH_BACKEND = "django.contrib.auth.backends.ModelBackend"
 LOGIN_URL = reverse_lazy("portal_web:login")
+VERIFICATION_STATUS_LABELS = {
+    "valid": "Valid",
+    "expiring_soon": "Valid - expiring soon",
+    "expired": "Expired",
+    "renewed": "Superseded by renewal",
+    "void": "Voided",
+    "not_issued": "Not issued",
+}
 
 
 # ── Public pages ─────────────────────────────────────────────────────────────
@@ -66,6 +79,42 @@ def landing(request):
     if request.user.is_authenticated:
         return redirect("portal_web:dashboard")
     return render(request, "portal/landing.html")
+
+
+def verify_certificate(request, identifier=None):
+    """Public certificate verification by number or training-record reference."""
+    identifier = (identifier or request.GET.get("identifier") or "").strip()
+    result = None
+    not_found = False
+    rate_limited = False
+
+    if identifier:
+        key = f"portal-verify:{client_ip(request)}"
+        try:
+            portal_svc.check_rate_limit(
+                key,
+                limit=int(getattr(settings, "PORTAL_VERIFY_RATE_LIMIT", 60)),
+                window=int(getattr(settings, "PORTAL_VERIFY_RATE_WINDOW", 300)),
+            )
+        except portal_svc.RateLimited:
+            rate_limited = True
+        else:
+            try:
+                result = verify_certificate_record(identifier)
+                result["status_label"] = VERIFICATION_STATUS_LABELS.get(
+                    result["status"], result["status"].replace("_", " ").title()
+                )
+            except CertificateVerificationNotFound:
+                not_found = True
+
+    context = {
+        "identifier": identifier,
+        "result": result,
+        "not_found": not_found,
+        "rate_limited": rate_limited,
+    }
+    status_code = 429 if rate_limited else 200
+    return render(request, "portal/verify_certificate.html", context, status=status_code)
 
 
 def register(request):
@@ -154,9 +203,11 @@ def verify_email(request, token=None):
 
 
 def login_view(request):
-    """Sign in with email + password (staff and portal share the account)."""
+    """Sign in to the learner portal with email + password."""
     if request.user.is_authenticated:
-        return redirect("portal_web:dashboard")
+        if PortalAccount.objects.filter(user=request.user).exists():
+            return redirect("portal_web:dashboard")
+        return redirect(settings.STAFF_APP_URL)
 
     form = LoginForm(request.POST or None)
     if request.method == "POST":
@@ -202,6 +253,18 @@ def login_view(request):
                 request,
                 "Please verify your email address before signing in. "
                 "Check your inbox for the verification link.",
+            )
+        elif not PortalAccount.objects.filter(user=user).exists():
+            write_audit(
+                action="auth.portal_access_denied",
+                entity="user",
+                entity_id=user.pk,
+                ip=client_ip(request),
+            )
+            messages.error(
+                request,
+                "This account is not registered for the learner portal. "
+                "Staff should sign in through the staff console.",
             )
         else:
             auth_login(request, user, backend=AUTH_BACKEND)
@@ -328,13 +391,17 @@ def password_reset_confirm(request, uidb64, token):
 # ── Authenticated pages ──────────────────────────────────────────────────────
 
 
-def _portal_learners(user):
-    """The learners a signed-in user may see (own record, or corporate nominees)."""
-    account = (
+def _account_for(user):
+    return (
         PortalAccount.objects.filter(user=user)
         .select_related("learner", "corporate_account")
         .first()
     )
+
+
+def _portal_learners(user):
+    """The learners a signed-in user may see (own record, or corporate nominees)."""
+    account = _account_for(user)
     if account is None:
         return account, []
     if account.corporate_account_id is not None:
@@ -351,6 +418,8 @@ def _portal_learners(user):
 def dashboard(request):
     """Learner dashboard — bookings, certificates and joining instructions."""
     account, learners = _portal_learners(request.user)
+    if account is None:
+        return redirect(settings.STAFF_APP_URL)
 
     enrolments = []
     certificates = []
@@ -417,6 +486,205 @@ def dashboard(request):
             "is_lead": is_lead,
         },
     )
+
+
+@login_required(login_url=LOGIN_URL)
+@require_http_methods(["GET", "POST"])
+def profile(request):
+    """Self-service portal profile — account names and learner bio-data."""
+    account = _account_for(request.user)
+    learner = account.learner if account else None
+    initial = {
+        "surname": learner.surname if learner else request.user.last_name,
+        "first_name": learner.first_name if learner else request.user.first_name,
+        "middle_name": learner.middle_name if learner else "",
+        "sex": learner.sex if learner else "",
+        "birth_date": learner.birth_date if learner else None,
+        "nationality": learner.nationality_id if learner else None,
+        "state": learner.state_id if learner else None,
+        "position": learner.position_id if learner else None,
+        "company": learner.company_id if learner else None,
+        "title": learner.title_id if learner else None,
+    }
+    form = ProfileForm(request.POST or None, initial=initial)
+    if request.method == "POST" and form.is_valid():
+        data = form.cleaned_data
+        try:
+            if learner and data["birth_date"]:
+                assert_min_age(data["birth_date"])
+        except AgeError:
+            form.add_error("birth_date", "You must be 18 or older.")
+        else:
+            if learner:
+                for field in (
+                    "surname",
+                    "first_name",
+                    "middle_name",
+                    "sex",
+                    "birth_date",
+                    "nationality",
+                    "state",
+                    "position",
+                    "company",
+                    "title",
+                ):
+                    value = data.get(field)
+                    if field == "birth_date" and value is None:
+                        continue
+                    setattr(learner, field, value)
+                learner.save()
+            request.user.first_name = data["first_name"]
+            request.user.last_name = data["surname"]
+            request.user.save(update_fields=["first_name", "last_name"])
+            write_audit(
+                action="portal.profile_updated",
+                entity="user",
+                entity_id=request.user.pk,
+                after={"learner_id": learner.pk if learner else None},
+            )
+            messages.success(request, "Your profile has been updated.")
+            return redirect("portal_web:profile")
+
+    _mark_invalid(form)
+    return render(
+        request,
+        "portal/profile.html",
+        {"form": form, "account": account, "learner": learner},
+    )
+
+
+@login_required(login_url=LOGIN_URL)
+@require_http_methods(["GET", "POST"])
+def corporate(request):
+    """Corporate workspace — account setup, nominees and certificate bundles."""
+    try:
+        account = portal_svc.get_lead_account(request.user)
+    except portal_svc.CorporateAccountRequired:
+        form = CorporateAccountForm(request.POST or None)
+        if request.method == "POST" and form.is_valid():
+            try:
+                portal_svc.create_corporate_account(
+                    request.user,
+                    name=form.cleaned_data["name"],
+                    company=form.cleaned_data.get("company"),
+                    terms_days=form.cleaned_data["terms_days"],
+                )
+            except portal_svc.CorporateError as exc:
+                form.add_error(None, str(exc))
+            else:
+                messages.success(request, "Your corporate account has been created.")
+                return redirect("portal_web:corporate")
+        _mark_invalid(form)
+        return render(
+            request,
+            "portal/corporate.html",
+            {"account": None, "account_form": form},
+        )
+
+    nominee_form = NomineeForm(
+        request.POST if request.POST.get("action") == "add-nominee" else None
+    )
+    if request.method == "POST":
+        action = request.POST.get("action")
+        if action == "add-nominee" and nominee_form.is_valid():
+            try:
+                portal_svc.add_nominee(account, **nominee_form.cleaned_bio())
+            except AgeError:
+                nominee_form.add_error("birth_date", "Nominees must be 18 or older.")
+            except portal_svc.DuplicateNominee:
+                nominee_form.add_error(
+                    None, "A nominee with the same name and date of birth already exists."
+                )
+            else:
+                messages.success(request, "Nominee added.")
+                return redirect("portal_web:corporate")
+        elif action == "bundle":
+            try:
+                cert_service.bundle_for_account(account, actor=request.user)
+            except BatchError as exc:
+                messages.error(request, str(exc))
+            else:
+                messages.success(request, "Certificate bundle assembled and sent.")
+            return redirect("portal_web:corporate")
+
+    _mark_invalid(nominee_form)
+    return render(
+        request,
+        "portal/corporate.html",
+        {
+            "account": account,
+            "nominees": account.nominees.order_by("surname", "first_name"),
+            "batches": account.certificate_batches.order_by("-created_at"),
+            "nominee_form": nominee_form,
+        },
+    )
+
+
+@login_required(login_url=LOGIN_URL)
+@require_http_methods(["GET", "POST"])
+def nominee_edit(request, pk):
+    """Edit a corporate nominee's bio-data."""
+    try:
+        account = portal_svc.get_lead_account(request.user)
+    except portal_svc.CorporateAccountRequired:
+        return redirect("portal_web:corporate")
+    learner = get_object_or_404(account.nominees, pk=pk)
+    initial = {
+        "surname": learner.surname,
+        "first_name": learner.first_name,
+        "middle_name": learner.middle_name,
+        "sex": learner.sex,
+        "birth_date": learner.birth_date,
+        "nationality": learner.nationality_id,
+        "state": learner.state_id,
+        "position": learner.position_id,
+        "company": learner.company_id,
+        "title": learner.title_id,
+    }
+    form = NomineeForm(request.POST or None, initial=initial)
+    if request.method == "POST" and form.is_valid():
+        bio = form.cleaned_bio()
+        if bio.get("company") is None:
+            bio.pop("company", None)
+        try:
+            portal_svc.update_nominee(learner, **bio)
+        except AgeError:
+            form.add_error("birth_date", "Nominees must be 18 or older.")
+        except portal_svc.DuplicateNominee:
+            form.add_error(
+                None, "A nominee with the same name and date of birth already exists."
+            )
+        else:
+            messages.success(request, "Nominee updated.")
+            return redirect("portal_web:corporate")
+    _mark_invalid(form)
+    return render(
+        request,
+        "portal/corporate_nominee_form.html",
+        {"form": form, "learner": learner, "account": account},
+    )
+
+
+@login_required(login_url=LOGIN_URL)
+@require_POST
+def nominee_remove(request, pk):
+    """Remove a nominee unless an active booking still holds a seat."""
+    try:
+        account = portal_svc.get_lead_account(request.user)
+    except portal_svc.CorporateAccountRequired:
+        return redirect("portal_web:corporate")
+    learner = get_object_or_404(account.nominees, pk=pk)
+    try:
+        portal_svc.remove_nominee(learner)
+    except portal_svc.NomineeHasConfirmedBooking:
+        messages.error(
+            request,
+            "This nominee has an active booking and cannot be removed. "
+            "Cancel the booking first.",
+        )
+    else:
+        messages.success(request, "Nominee removed.")
+    return redirect("portal_web:corporate")
 
 
 def _certificate_state(cert, today) -> str:

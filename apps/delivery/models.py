@@ -1,6 +1,6 @@
 from django.db import models
 
-from apps.catalogue.models import Course, CourseItem
+from apps.catalogue.models import Course, CourseItem, CourseModule
 from apps.common.models import TimeStampedModel
 from apps.learners.models import Learner
 
@@ -36,6 +36,27 @@ class TrainingRecord(TimeStampedModel):
     )
     reject_reason = models.TextField(blank=True, default="")
     instructor = models.CharField(max_length=150, blank=True, default="")
+    foet_scan = models.ForeignKey(
+        "documents.Document",
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name="+",
+    )
+    payment_proof = models.ForeignKey(
+        "documents.Document",
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name="+",
+    )
+    welcome_letter = models.ForeignKey(
+        "documents.Document",
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name="+",
+    )
 
     class Meta:
         db_table = "training_record"
@@ -71,6 +92,10 @@ class TrainingInstructor(models.Model):
     instructor = models.ForeignKey(
         "scheduling.Instructor", on_delete=models.PROTECT, related_name="+"
     )
+    module = models.ForeignKey(
+        CourseModule, null=True, blank=True, on_delete=models.SET_NULL, related_name="+"
+    )
+    training_date = models.DateField(null=True, blank=True)
 
     class Meta:
         db_table = "training_instructor"
@@ -79,3 +104,31 @@ class TrainingInstructor(models.Model):
                 fields=["training_record", "instructor"], name="uq_training_instructor"
             )
         ]
+
+
+class DailyMedicalCheck(models.Model):
+    """Per-day blood-pressure reading captured during a course."""
+
+    training_record = models.ForeignKey(
+        TrainingRecord, on_delete=models.CASCADE, related_name="medical_checks"
+    )
+    check_date = models.DateField()
+    systolic = models.IntegerField(null=True, blank=True)
+    diastolic = models.IntegerField(null=True, blank=True)
+    notes = models.TextField(blank=True, default="")
+    created_at = models.DateTimeField(auto_now_add=True)
+    created_by = models.ForeignKey(
+        "accounts.User", null=True, blank=True, on_delete=models.SET_NULL, related_name="+"
+    )
+
+    class Meta:
+        db_table = "daily_medical_check"
+        ordering = ("check_date", "id")
+        constraints = [
+            models.UniqueConstraint(
+                fields=["training_record", "check_date"], name="uq_daily_medical_check"
+            )
+        ]
+
+    def __str__(self) -> str:
+        return f"BP#{self.training_record_id}@{self.check_date}"

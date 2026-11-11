@@ -2,18 +2,14 @@ import { Suspense, useEffect, useState } from "react";
 import { NavLink, Outlet, useLocation } from "react-router-dom";
 import {
   Award,
-  BookOpen,
   CalendarDays,
-  ChartNoAxesCombined,
   ClipboardList,
-  GitPullRequest,
   LayoutDashboard,
   LogOut,
   Menu,
   ReceiptText,
-  ShieldCheck,
   Stethoscope,
-  Users,
+  UserRound,
   X,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
@@ -21,16 +17,14 @@ import { useAuth } from "../auth/context";
 import {
   BILLING_ROLES,
   CERTIFICATE_READ,
-  LEARNER_ROLES,
   MEDICAL_ROLES,
-  REPORTING_ROLES,
-  USER_ADMIN_ROLES,
   can,
   displayName,
   initials,
   roleNames,
 } from "../auth/roles";
 import type { RoleCode } from "../api/types";
+import { AXIS_GROUPS } from "../navigation/axis";
 import { todayLabel } from "../lib/format";
 import { Loading } from "./ui";
 
@@ -42,19 +36,52 @@ interface NavItem {
   end?: boolean;
 }
 
-const NAV: NavItem[] = [
-  { to: "/", label: "Operations board", icon: LayoutDashboard, end: true },
-  { to: "/workflow", label: "Workflow", icon: GitPullRequest },
-  { to: "/learners", label: "Learners", icon: Users, roles: LEARNER_ROLES },
-  { to: "/courses", label: "Courses", icon: BookOpen, roles: ["system_admin"] },
-  { to: "/scheduling", label: "Scheduling", icon: CalendarDays },
-  { to: "/enrolments", label: "Enrolments", icon: ClipboardList },
-  { to: "/certificates", label: "Certificates", icon: Award, roles: CERTIFICATE_READ },
-  { to: "/billing", label: "Billing", icon: ReceiptText, roles: BILLING_ROLES },
-  { to: "/medicals", label: "Medicals", icon: Stethoscope, roles: MEDICAL_ROLES },
-  { to: "/reports", label: "Reports", icon: ChartNoAxesCombined, roles: REPORTING_ROLES },
-  { to: "/users", label: "Team access", icon: ShieldCheck, roles: USER_ADMIN_ROLES },
-];
+interface NavGroup {
+  label: string;
+  items: NavItem[];
+}
+
+const HOME_ITEM: NavItem = {
+  to: "/",
+  label: "Home",
+  icon: LayoutDashboard,
+  end: true,
+};
+
+const AXIS_NAV_GROUPS: NavGroup[] = AXIS_GROUPS.map((group) => ({
+  label: group.label,
+  items: group.items.map((item) => ({
+    to: item.to,
+    label: item.title,
+    icon: item.icon,
+    roles: item.roles,
+  })),
+}));
+
+const CENTRE_TOOLS: NavGroup = {
+  label: "Centre tools",
+  items: [
+    { to: "/scheduling", label: "Scheduling", icon: CalendarDays },
+    { to: "/enrolments", label: "Enrolments", icon: ClipboardList },
+    { to: "/certificates", label: "Certificates", icon: Award, roles: CERTIFICATE_READ },
+    { to: "/medicals", label: "Medicals", icon: Stethoscope, roles: MEDICAL_ROLES },
+    { to: "/billing", label: "Billing", icon: ReceiptText, roles: BILLING_ROLES },
+  ],
+};
+
+const NAV_GROUPS: NavGroup[] = [...AXIS_NAV_GROUPS, CENTRE_TOOLS];
+
+function currentLabel(pathname: string, visible: NavItem[]) {
+  if (pathname === "/") return "Home";
+  if (pathname === "/workflow") return "All Training Records";
+  if (/^\/learners\/\d+/.test(pathname)) return "Learner workspace";
+  if (/^\/training-records\/\d+/.test(pathname)) return "Training workspace";
+  if (/^\/reports\//.test(pathname)) return "Reporting";
+  const match = [...visible]
+    .sort((a, b) => b.to.length - a.to.length)
+    .find((item) => (item.to === "/" ? pathname === "/" : pathname.startsWith(item.to)));
+  return match?.label ?? "Home";
+}
 
 export function AppShell() {
   const { user, signOut } = useAuth();
@@ -66,10 +93,11 @@ export function AppShell() {
     window.scrollTo({ top: 0, behavior: "instant" });
   }, [location.pathname]);
 
-  const visible = NAV.filter((item) => !item.roles || can(user, item.roles));
-  const current = visible.find((item) =>
-    item.to === "/" ? location.pathname === "/" : location.pathname.startsWith(item.to),
-  );
+  const groups = NAV_GROUPS.map((group) => ({
+    ...group,
+    items: group.items.filter((item) => !item.roles || can(user, item.roles)),
+  })).filter((group) => group.items.length);
+  const visible = groups.flatMap((group) => group.items);
 
   return (
     <div className="app-shell">
@@ -96,20 +124,33 @@ export function AppShell() {
         </div>
 
         <nav className="sidebar-nav">
-          {visible.map((item) => {
-            const Icon = item.icon;
-            return (
-              <NavLink
-                key={item.to}
-                to={item.to}
-                end={item.end}
-                className={({ isActive }) => (isActive ? "nav-item active" : "nav-item")}
-              >
-                <Icon size={18} aria-hidden="true" />
-                <span>{item.label}</span>
-              </NavLink>
-            );
-          })}
+          <NavLink
+            to={HOME_ITEM.to}
+            end={HOME_ITEM.end}
+            className={({ isActive }) => (isActive ? "nav-item active" : "nav-item")}
+          >
+            <HOME_ITEM.icon size={18} aria-hidden="true" />
+            <span>{HOME_ITEM.label}</span>
+          </NavLink>
+          {groups.map((group) => (
+            <div className="nav-group" key={group.label}>
+              <p className="nav-group-label">{group.label}</p>
+              {group.items.map((item) => {
+                const Icon = item.icon;
+                return (
+                  <NavLink
+                    key={item.to}
+                    to={item.to}
+                    end={item.end}
+                    className={({ isActive }) => (isActive ? "nav-item active" : "nav-item")}
+                  >
+                    <Icon size={18} aria-hidden="true" />
+                    <span>{item.label}</span>
+                  </NavLink>
+                );
+              })}
+            </div>
+          ))}
         </nav>
 
         <div className="sidebar-foot">
@@ -120,6 +161,13 @@ export function AppShell() {
               <span>{roleNames(user?.role_codes)}</span>
             </div>
           </div>
+          <NavLink
+            to="/profile"
+            className={({ isActive }) => (isActive ? "nav-item active" : "nav-item")}
+          >
+            <UserRound size={18} aria-hidden="true" />
+            <span>My Profile</span>
+          </NavLink>
           <button type="button" className="nav-item nav-signout" onClick={() => void signOut()}>
             <LogOut size={18} aria-hidden="true" />
             <span>Sign out</span>
@@ -150,7 +198,7 @@ export function AppShell() {
             </button>
             <div>
               <p className="crumb">TASL / Operations</p>
-              <strong>{current?.label ?? "Operations"}</strong>
+              <strong>{currentLabel(location.pathname, visible)}</strong>
             </div>
           </div>
           <div className="topbar-right">

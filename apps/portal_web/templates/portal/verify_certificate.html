@@ -1,0 +1,109 @@
+{% extends "portal/base.html" %}
+{% block title %}Verify a certificate &mdash; TASL Training Centre Portal{% endblock %}
+
+{% block content %}
+<section class="shell verify-shell">
+  <div class="verify-head">
+    <p class="eyebrow">Certificate registry</p>
+    <h1>Verify a training certificate</h1>
+    <p class="verify-lede">
+      Enter the certificate number, or the training record reference printed on the
+      certificate, to confirm that it was issued by TASL Training Centre.
+    </p>
+
+    <form class="verify-search" method="get" action="{% url 'portal_web:verify-certificate' %}" role="search">
+      <label class="visually-hidden" for="certificate-identifier">
+        Certificate number or training record reference
+      </label>
+      <input
+        id="certificate-identifier"
+        name="identifier"
+        value="{{ identifier }}"
+        placeholder="e.g. T26001190 or 1042"
+        autocomplete="off"
+        required
+      >
+      <button class="btn btn-primary" type="submit">Verify certificate</button>
+    </form>
+  </div>
+
+  {% if identifier %}
+    <div class="verify-output" aria-live="polite">
+      {% if rate_limited %}
+        <div class="verify-card verify-card-invalid" role="alert">
+          <span class="verify-icon" aria-hidden="true">!</span>
+          <div>
+            <p class="verify-kicker">Too many checks</p>
+            <h2>Please try again shortly</h2>
+            <p>Verification has been paused for a few minutes. Try again later.</p>
+          </div>
+        </div>
+      {% elif not_found %}
+        <div class="verify-card verify-card-invalid" role="alert">
+          <span class="verify-icon" aria-hidden="true">!</span>
+          <div>
+            <p class="verify-kicker">No matching record</p>
+            <h2>Certificate not found</h2>
+            <p>
+              We could not find a certificate for <strong>{{ identifier }}</strong>.
+              Check the reference and try again.
+            </p>
+          </div>
+        </div>
+      {% elif result %}
+        <div class="verify-card {% if result.is_valid %}verify-card-valid{% else %}verify-card-invalid{% endif %}">
+          <span class="verify-icon" aria-hidden="true">{% if result.is_valid %}&#10003;{% else %}!{% endif %}</span>
+          <div>
+            <p class="verify-kicker">
+              {% if result.is_valid %}Registry confirmation{% else %}Registry record{% endif %}
+            </p>
+            <h2>
+              {% if result.is_valid %}Certificate is valid{% else %}Certificate is not valid{% endif %}
+            </h2>
+            <p class="verify-statement">
+              We can confirm that <strong>{{ result.full_name }}</strong> received a
+              certificate for <strong>{{ result.course }}</strong>{% if result.issued %}
+              on {{ result.issued|date:"j M Y" }}{% endif %}.
+            </p>
+            <dl class="verify-facts">
+              <div>
+                <dt>Certificate no.</dt>
+                <dd class="mono">{{ result.certificate_no }}</dd>
+              </div>
+              <div>
+                <dt>Status</dt>
+                <dd>{{ result.status_label }}</dd>
+              </div>
+              <div>
+                <dt>Issued</dt>
+                <dd>{{ result.issued|date:"j M Y"|default:"Not issued" }}</dd>
+              </div>
+              <div>
+                <dt>Expires</dt>
+                <dd>{% if result.expiry %}{{ result.expiry|date:"j M Y" }}{% else %}No expiry{% endif %}</dd>
+              </div>
+            </dl>
+            {% if result.expiry and result.is_valid %}
+              <p class="verify-expiry">
+                This certificate will expire on <strong>{{ result.expiry|date:"j M Y" }}</strong>.
+              </p>
+            {% endif %}
+          </div>
+        </div>
+      {% endif %}
+    </div>
+  {% else %}
+    <div class="verify-card verify-card-neutral">
+      <span class="verify-icon" aria-hidden="true">i</span>
+      <div>
+        <p class="verify-kicker">How this works</p>
+        <h2>A public check without personal data exposure</h2>
+        <p>
+          Verification confirms the learner name, course, issue date and validity.
+          Medical records, contact details and payment information are never shown.
+        </p>
+      </div>
+    </div>
+  {% endif %}
+</section>
+{% endblock %}

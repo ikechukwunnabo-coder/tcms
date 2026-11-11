@@ -152,6 +152,7 @@ STATIC_URL = "static/"
 STATIC_ROOT = BASE_DIR / "staticfiles"
 MEDIA_URL = "media/"
 MEDIA_ROOT = BASE_DIR / "media"
+BACKUP_DIR = Path(env("BACKUP_DIR", str(BASE_DIR / "backups")))
 WHITENOISE_MAX_AGE = int(env("WHITENOISE_MAX_AGE", "31536000"))
 
 STORAGES = {
@@ -196,6 +197,7 @@ REST_FRAMEWORK = {
     "NUM_PROXIES": int(env("DRF_NUM_PROXIES", "0")),
     "DEFAULT_PAGINATION_CLASS": "apps.common.pagination.StandardPagination",
     "PAGE_SIZE": 50,
+    "URL_FORMAT_OVERRIDE": "export_format",
     "DEFAULT_FILTER_BACKENDS": [
         "django_filters.rest_framework.DjangoFilterBackend",
         "rest_framework.filters.SearchFilter",
@@ -205,6 +207,7 @@ REST_FRAMEWORK = {
     "DEFAULT_THROTTLE_RATES": {
         "login": env("API_LOGIN_RATE", "10/min"),
         "register": env("API_REGISTER_RATE", "20/hour"),
+        "verify": env("API_VERIFY_RATE", "60/min"),
     },
 }
 
@@ -274,6 +277,11 @@ CERTIFICATE_SIGNATORY_TITLE = env("CERTIFICATE_SIGNATORY_TITLE", "Managing Direc
 # Optional public verification URL printed in the certificate footer.
 CERTIFICATE_VERIFY_URL = env("CERTIFICATE_VERIFY_URL", "")
 
+# OPITO CSV upload defaults. The centre code may be blank for a Centre login;
+# the OPITO105 booking reference is the standard registration reference.
+OPITO_CENTRE_CODE = env("OPITO_CENTRE_CODE", "")
+OPITO_BOOKING_REF = env("OPITO_BOOKING_REF", "OPITO105")
+
 # ── Domain: billing (see design 02-database.md M10) ──────────────────────────
 # VAT percentage applied to taxable invoice lines. Defaults to 0 so the system
 # is safe until Finance confirms the applicable rate; set BILLING_TAX_PCT (e.g.
@@ -312,6 +320,8 @@ ADMIN_LOGIN_RATE_WINDOW = int(env("ADMIN_LOGIN_RATE_WINDOW", "300"))
 
 # ── Domain: portal (see design 04-api-contract.md §5, spec BR-15) ────────────
 PORTAL_BASE_URL = env("PORTAL_BASE_URL", "http://localhost:3000")
+# Staff console entry point linked from the learner portal footer and login help.
+STAFF_APP_URL = env("STAFF_APP_URL", "http://localhost:5173")
 PORTAL_WEB_BASE_URL = env("PORTAL_WEB_BASE_URL", "http://127.0.0.1:8000")
 PORTAL_WEB_PATH = env("PORTAL_WEB_PATH", "/portal/")
 # Where the verification email points. The Django-rendered portal accepts both
@@ -326,6 +336,8 @@ PORTAL_LOGIN_RATE_LIMIT = int(env("PORTAL_LOGIN_RATE_LIMIT", "10"))
 PORTAL_LOGIN_RATE_WINDOW = int(env("PORTAL_LOGIN_RATE_WINDOW", "300"))  # seconds
 PORTAL_REGISTER_RATE_LIMIT = int(env("PORTAL_REGISTER_RATE_LIMIT", "20"))
 PORTAL_REGISTER_RATE_WINDOW = int(env("PORTAL_REGISTER_RATE_WINDOW", "3600"))  # seconds
+PORTAL_VERIFY_RATE_LIMIT = int(env("PORTAL_VERIFY_RATE_LIMIT", "60"))
+PORTAL_VERIFY_RATE_WINDOW = int(env("PORTAL_VERIFY_RATE_WINDOW", "300"))  # seconds
 
 # ── Domain: CJI (Course Joining Instructions — spec §9.7, SAD §8.2) ──────────
 CJI_COURSE_TIME = env("CJI_COURSE_TIME", "09:00")

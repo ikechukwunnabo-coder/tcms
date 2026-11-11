@@ -6,6 +6,83 @@ from django.contrib.auth.password_validation import validate_password
 from django.core.exceptions import ValidationError
 
 from apps.common.enums import Sex
+from apps.reference.models import Company, Nationality, Position, State, Title
+
+REFERENCE_FIELDS = ("nationality", "state", "position", "company", "title")
+
+
+class CorporateAccountForm(forms.Form):
+    """Create the signed-in lead's corporate account (spec §9.6)."""
+
+    name = forms.CharField(max_length=200, label="Account name")
+    company = forms.ModelChoiceField(
+        queryset=Company.objects.all(), required=False, empty_label="Not linked"
+    )
+    terms_days = forms.IntegerField(min_value=0, initial=30, label="Payment terms (days)")
+
+
+class ProfileForm(forms.Form):
+    """Portal self-service profile — account names plus learner bio-data."""
+
+    surname = forms.CharField(max_length=150, label="Surname")
+    first_name = forms.CharField(max_length=150, required=False)
+    middle_name = forms.CharField(max_length=150, required=False)
+    sex = forms.ChoiceField(
+        choices=[("", "Select..."), (Sex.MALE.value, "Male"), (Sex.FEMALE.value, "Female")],
+        required=False,
+    )
+    birth_date = forms.DateField(
+        required=False, widget=forms.DateInput(attrs={"type": "date"})
+    )
+    nationality = forms.ModelChoiceField(
+        queryset=Nationality.objects.all(), required=False, empty_label="Not set"
+    )
+    state = forms.ModelChoiceField(
+        queryset=State.objects.all(), required=False, empty_label="Not set"
+    )
+    position = forms.ModelChoiceField(
+        queryset=Position.objects.all(), required=False, empty_label="Not set"
+    )
+    company = forms.ModelChoiceField(
+        queryset=Company.objects.all(), required=False, empty_label="Not set"
+    )
+    title = forms.ModelChoiceField(
+        queryset=Title.objects.all(), required=False, empty_label="Not set"
+    )
+
+
+class NomineeForm(forms.Form):
+    """Corporate nominee bio-data (spec §9.6)."""
+
+    surname = forms.CharField(max_length=100, label="Surname")
+    first_name = forms.CharField(max_length=100, required=False)
+    middle_name = forms.CharField(max_length=100, required=False)
+    sex = forms.ChoiceField(
+        choices=[("", "Select..."), (Sex.MALE.value, "Male"), (Sex.FEMALE.value, "Female")],
+        required=False,
+    )
+    birth_date = forms.DateField(widget=forms.DateInput(attrs={"type": "date"}))
+    nationality = forms.ModelChoiceField(
+        queryset=Nationality.objects.all(), required=False, empty_label="Not set"
+    )
+    state = forms.ModelChoiceField(
+        queryset=State.objects.all(), required=False, empty_label="Not set"
+    )
+    position = forms.ModelChoiceField(
+        queryset=Position.objects.all(), required=False, empty_label="Not set"
+    )
+    company = forms.ModelChoiceField(
+        queryset=Company.objects.all(), required=False, empty_label="Not set"
+    )
+    title = forms.ModelChoiceField(
+        queryset=Title.objects.all(), required=False, empty_label="Not set"
+    )
+
+    def cleaned_bio(self) -> dict:
+        return {name: self.cleaned_data.get(name) for name in (
+            "surname", "first_name", "middle_name", "sex", "birth_date",
+            *REFERENCE_FIELDS,
+        )}
 
 
 class RegisterForm(forms.Form):

@@ -146,11 +146,14 @@ class CertificateBatchStatus(models.TextChoices):
 
 class DocumentKind(models.TextChoices):
     PASSPORT = "passport", "Passport"
+    ID_SCAN = "id_scan", "ID scan"
     PHOTO = "photo", "Photo"
     CERTIFICATE = "certificate", "Certificate"
     CJI = "cji", "Course Joining Instructions"
+    FOET_SCAN = "foet_scan", "FOET scan"
     MEDICAL = "medical", "Medical fitness"
     PAYMENT_PROOF = "payment_proof", "Payment proof"
+    WELCOME_LETTER = "welcome_letter", "Welcome letter"
     OTHER = "other", "Other"
 
 

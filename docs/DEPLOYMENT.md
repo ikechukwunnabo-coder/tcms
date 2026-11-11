@@ -45,6 +45,10 @@ EMAIL_HOST_PASSWORD=<smtp password>
 EMAIL_USE_TLS=true
 DEFAULT_FROM_EMAIL=no-reply@example.com
 
+STAFF_APP_URL=https://tcms.example.com/
+PORTAL_WEB_BASE_URL=https://tcms.example.com
+PORTAL_VERIFY_URL=https://tcms.example.com/portal/verify-email/
+
 USE_S3_STORAGE=true
 AWS_ACCESS_KEY_ID=<key>
 AWS_SECRET_ACCESS_KEY=<secret>
@@ -63,6 +67,9 @@ Deployment decisions that should be confirmed before go-live:
   GL accounts are missing.
 - `ENFORCE_FACILITY_CAPACITY` / `ENFORCE_VENUE_EXCLUSIVITY` — keep both `true`
   unless operations explicitly schedules concurrent courses in one venue.
+- `STAFF_APP_URL` — public staff-console URL linked from the learner portal.
+- `PORTAL_WEB_BASE_URL` / `PORTAL_VERIFY_URL` — public portal address and the
+  verification link embedded in registration emails.
 
 ## 3. Build and release
 

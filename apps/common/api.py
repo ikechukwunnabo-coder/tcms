@@ -10,8 +10,14 @@ from apps.catalogue.views import (
     CourseModuleViewSet,
     CourseViewSet,
 )
-from apps.certification.views import CertificateSequenceViewSet, CertificateViewSet, IDCardViewSet
+from apps.certification.views import (
+    CertificateSequenceViewSet,
+    CertificateViewSet,
+    IDCardViewSet,
+    OpitoFileViewSet,
+)
 from apps.delivery.views import (
+    DailyMedicalCheckViewSet,
     TrainingInstructorViewSet,
     TrainingItemViewSet,
     TrainingRecordViewSet,
@@ -96,6 +102,9 @@ router.register("instructors", InstructorViewSet, basename="instructors")
 router.register("training-records", TrainingRecordViewSet, basename="training-records")
 router.register("training-items", TrainingItemViewSet, basename="training-items")
 router.register("training-instructors", TrainingInstructorViewSet, basename="training-instructors")
+router.register(
+    "medical-checks", DailyMedicalCheckViewSet, basename="medical-checks"
+)
 
 # M7 Certification
 router.register("certificates", CertificateViewSet, basename="certificates")
@@ -103,6 +112,7 @@ router.register(
     "certificate-sequences", CertificateSequenceViewSet, basename="certificate-sequences"
 )
 router.register("id-cards", IDCardViewSet, basename="id-cards")
+router.register("opito-files", OpitoFileViewSet, basename="opito-files")
 
 # M8 Medicals
 router.register("medicals", MedicalViewSet, basename="medicals")

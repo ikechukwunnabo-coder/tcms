@@ -1,3 +1,5 @@
+import csv
+import io
 import tempfile
 from datetime import date, timedelta
 
@@ -18,6 +20,7 @@ from apps.certification.models import (
     Certificate,
     CertificateReminder,
     CertificateSequence,
+    OpitoFile,
 )
 from apps.common.enums import CertificateReminderStatus, ExpiryTypeCode, RoleCode
 from apps.delivery.models import TrainingRecord
@@ -562,3 +565,286 @@ class CertificateDocumentAPITests(APITestCase):
         download = self.client.get(f"/api/v1/id-cards/{card_id}/document/")
         self.assertEqual(download.status_code, 200)
         self.assertEqual(download["Content-Type"], "application/pdf")
+
+
+class PublicCertificateVerificationTests(APITestCase):
+    @classmethod
+    def setUpTestData(cls):
+        call_command("seed_roles", verbosity=0)
+        call_command("seed_data", verbosity=0)
+        cls.course = Course.objects.get(course_code="FIRST-AID")
+        cls.learner = Learner.objects.create(
+            badge_no="VER01",
+            surname="Adeyemi",
+            first_name="Tola",
+            birth_date=date(1992, 8, 9),
+        )
+        cls.record = TrainingRecord.objects.create(
+            learner=cls.learner,
+            course=cls.course,
+            status=WorkflowStatus.objects.get(pk=9),
+            start_date=date(2026, 1, 13),
+        )
+
+    def _certificate(self, number="T2600001", **overrides):
+        values = {
+            "training_record": self.record,
+            "learner": self.learner,
+            "certificate_no": number,
+            "issued_at": timezone.now(),
+            "expiry_date": date.today() + timedelta(days=365),
+        }
+        values.update(overrides)
+        return Certificate.objects.create(**values)
+
+    def _get(self, identifier):
+        return self.client.get(f"/api/v1/verify/{identifier}/")
+
+    def test_verifies_by_certificate_number_without_authentication(self):
+        self._certificate()
+        response = self._get("t2600001")
+        self.assertEqual(response.status_code, 200)
+        self.assertTrue(response.data["is_valid"])
+        self.assertEqual(response.data["status"], "valid")
+        self.assertEqual(response.data["full_name"], self.learner.full_name)
+        self.assertEqual(response.data["course"], self.course.name)
+        self.assertEqual(response.data["certificate_no"], "T2600001")
+        self.assertNotIn("learner", response.data)
+        self.assertNotIn("training_record", response.data)
+
+    def test_verifies_by_training_record_id_for_axis_compatibility(self):
+        self._certificate()
+        response = self._get(str(self.record.pk))
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.data["certificate_no"], "T2600001")
+
+    def test_uses_latest_certificate_for_training_record(self):
+        self._certificate("T2600001", issued_at=timezone.now() - timedelta(days=2))
+        self._certificate("T2600002", issued_at=timezone.now())
+        response = self._get(str(self.record.pk))
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.data["certificate_no"], "T2600002")
+
+    def test_reports_expired_certificate_as_invalid(self):
+        self._certificate(expiry_date=date.today() - timedelta(days=1))
+        response = self._get("T2600001")
+        self.assertEqual(response.status_code, 200)
+        self.assertFalse(response.data["is_valid"])
+        self.assertEqual(response.data["status"], "expired")
+
+    def test_reports_void_certificate_as_invalid(self):
+        self._certificate(voided_at=timezone.now(), void_reason="Issued in error")
+        response = self._get("T2600001")
+        self.assertEqual(response.status_code, 200)
+        self.assertFalse(response.data["is_valid"])
+        self.assertEqual(response.data["status"], "void")
+
+    def test_reports_unissued_certificate_as_invalid(self):
+        self._certificate(issued_at=None)
+        response = self._get("T2600001")
+        self.assertEqual(response.status_code, 200)
+        self.assertFalse(response.data["is_valid"])
+        self.assertEqual(response.data["status"], "not_issued")
+        self.assertIsNone(response.data["issued"])
+
+    def test_unknown_identifier_returns_not_found(self):
+        response = self._get("does-not-exist")
+        self.assertEqual(response.status_code, 404)
+        self.assertEqual(response.data["error"], "not_found")
+
+
+@override_settings(
+    MEDIA_ROOT=tempfile.mkdtemp(),
+    OPITO_CENTRE_CODE="",
+    OPITO_BOOKING_REF="OPITO105",
+)
+class OpitoFileAPITests(APITestCase):
+    @classmethod
+    def setUpTestData(cls):
+        call_command("seed_roles", verbosity=0)
+        call_command("seed_data", verbosity=0)
+        cls.course = Course.objects.get(course_code="BOSIET")
+        cls.standard_course = Course.objects.get(course_code="FIRST-AID")
+        cls.admin = User.objects.create_user("opitoadmin", password="pw12345678")
+        cls.admin.roles.add(Role.objects.get(pk=RoleCode.ADMIN))
+        cls.reader = User.objects.create_user("opitoreader", password="pw12345678")
+        cls.reader.roles.add(Role.objects.get(pk=RoleCode.DUE_DILIGENCE))
+        cls.learner_one = Learner.objects.create(
+            badge_no="OP001",
+            surname="Okafor",
+            first_name="Ada",
+            birth_date=date(1990, 5, 6),
+            vantage_id="VAN-001",
+        )
+        cls.learner_two = Learner.objects.create(
+            badge_no="OP002",
+            surname="Adeyemi",
+            first_name="Tola",
+            birth_date=date(1992, 7, 8),
+        )
+        cls.start = date(2026, 2, 2)
+        cls.end = date(2026, 2, 6)
+        cls.record_one = TrainingRecord.objects.create(
+            learner=cls.learner_one,
+            course=cls.course,
+            status=WorkflowStatus.objects.get(pk=9),
+            start_date=cls.start,
+            end_date=cls.end,
+        )
+        cls.record_two = TrainingRecord.objects.create(
+            learner=cls.learner_two,
+            course=cls.course,
+            status=WorkflowStatus.objects.get(pk=9),
+            start_date=cls.start,
+            end_date=cls.end,
+            prev_expiry=date(2026, 3, 3),
+        )
+        TrainingRecord.objects.create(
+            learner=cls.learner_one,
+            course=cls.standard_course,
+            status=WorkflowStatus.objects.get(pk=9),
+            start_date=cls.start,
+            end_date=cls.end,
+        )
+        Certificate.objects.create(
+            training_record=cls.record_one,
+            learner=cls.learner_one,
+            certificate_no="OP-CERT-1",
+            opito_learner_id="OP-L-1",
+            issued_at=timezone.now(),
+        )
+
+    def _auth(self, user):
+        token, _ = Token.objects.get_or_create(user=user)
+        self.client.credentials(HTTP_AUTHORIZATION=f"Token {token.key}")
+
+    def _cohort_url(self, suffix="", *, use_file_alias=False):
+        base = "/api/v1/opito-files/"
+        if use_file_alias:
+            base += "file/"
+        return f"{base}{suffix}"
+
+    def _params(self):
+        return f"?course={self.course.pk}&start_date={self.start.isoformat()}"
+
+    def test_lists_only_opito_cohorts_and_exposes_file_alias(self):
+        self._auth(self.admin)
+        response = self.client.get(self._cohort_url())
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.data["total"], 1)
+        row = response.data["data"][0]
+        self.assertEqual(row["id"], f"{self.start.isoformat()} {self.course.pk}")
+        self.assertEqual(row["name"], self.course.name)
+        self.assertEqual(row["product_code"], "5700")
+        self.assertEqual(row["learners"], 2)
+        self.assertEqual(row["fileName"], "")
+
+        alias = self.client.get(self._cohort_url(use_file_alias=True))
+        self.assertEqual(alias.status_code, 200)
+        self.assertEqual(alias.data["total"], 1)
+
+    def test_validate_vantage_reports_missing_ids(self):
+        self._auth(self.admin)
+        response = self.client.get(
+            self._cohort_url("validate-vantage/") + self._params()
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertFalse(response.data["valid"])
+        self.assertEqual(
+            response.data["missingVantageIds"],
+            [
+                {
+                    "learnerId": self.learner_two.pk,
+                    "fullName": "Adeyemi Tola",
+                    "badge": "OP002",
+                }
+            ],
+        )
+
+    def test_content_returns_expected_opito_rows(self):
+        self._auth(self.admin)
+        response = self.client.get(self._cohort_url("content/") + self._params())
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.data["count"], 2)
+        first, second = response.data["rows"]
+        self.assertEqual(first["last_name"], "Adeyemi")
+        self.assertEqual(first["vantage_id"], "")
+        self.assertEqual(first["forward_date"], "2026-03-03")
+        self.assertEqual(second["last_name"], "Okafor")
+        self.assertEqual(second["opito_learner_no"], "OP-L-1")
+        self.assertEqual(second["learner_count"], 2)
+
+    def test_generate_and_download_csv(self):
+        self._auth(self.admin)
+        response = self.client.post(
+            self._cohort_url("generate/"),
+            {"course": self.course.pk, "start_date": self.start.isoformat()},
+            format="json",
+        )
+        self.assertEqual(response.status_code, 201)
+        self.assertTrue(response.data["fileName"].endswith(".csv"))
+        generated = OpitoFile.objects.get(course=self.course, start_date=self.start)
+        self.assertEqual(generated.record_count, 2)
+
+        download = self.client.get(f"/api/v1/opito-files/{generated.pk}/download/")
+        self.assertEqual(download.status_code, 200)
+        text = b"".join(download.streaming_content).decode()
+        reader = csv.DictReader(io.StringIO(text))
+        self.assertEqual(
+            reader.fieldnames,
+            [
+                "Start Date",
+                "End Date",
+                "Centre Code",
+                "Product Code",
+                "Booking Ref No",
+                "Learner Count",
+                "OPITO Learner No",
+                "Vantage ID",
+                "First Name",
+                "Last Name",
+                "DOB",
+                "Forward Date",
+            ],
+        )
+        rows = list(reader)
+        self.assertEqual(len(rows), 2)
+        self.assertEqual(rows[0]["Last Name"], "Adeyemi")
+        self.assertEqual(rows[0]["Start Date"], "02-FEB-2026")
+        self.assertEqual(rows[0]["End Date"], "06-FEB-2026")
+        self.assertEqual(rows[0]["Booking Ref No"], "OPITO105")
+        self.assertEqual(rows[0]["Learner Count"], "2")
+        self.assertEqual(rows[0]["DOB"], "08-JUL-1992")
+        self.assertEqual(rows[0]["Forward Date"], "03-MAR-2026")
+        self.assertEqual(rows[1]["OPITO Learner No"], "OP-L-1")
+        self.assertEqual(rows[1]["Vantage ID"], "VAN-001")
+
+    def test_regenerate_replaces_the_previous_csv(self):
+        self._auth(self.admin)
+        payload = {"course": self.course.pk, "date": self.start.isoformat()}
+        first = self.client.post(self._cohort_url("csv/"), payload, format="json")
+        self.assertEqual(first.status_code, 201)
+        first_key = OpitoFile.objects.get().object_key
+        second = self.client.post(self._cohort_url("generate/"), payload, format="json")
+        self.assertEqual(second.status_code, 201)
+        generated = OpitoFile.objects.get()
+        self.assertNotEqual(generated.object_key, first_key)
+        self.assertFalse(default_storage.exists(first_key))
+
+    def test_rejects_non_opito_course_and_write_without_role(self):
+        self._auth(self.admin)
+        response = self.client.post(
+            self._cohort_url("generate/"),
+            {"course": self.standard_course.pk, "start_date": self.start.isoformat()},
+            format="json",
+        )
+        self.assertEqual(response.status_code, 400)
+
+        self._auth(self.reader)
+        self.assertEqual(self.client.get(self._cohort_url()).status_code, 200)
+        write = self.client.post(
+            self._cohort_url("generate/"),
+            {"course": self.course.pk, "start_date": self.start.isoformat()},
+            format="json",
+        )
+        self.assertEqual(write.status_code, 403)

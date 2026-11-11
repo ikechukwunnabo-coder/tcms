@@ -73,7 +73,7 @@ export function roleNames(codes: RoleCode[] | undefined): string {
 
 export function initials(user: StaffUser | null | undefined): string {
   if (!user) return "?";
-  const name = `${user.first_name} ${user.last_name}`.trim() || user.username;
+  const name = user.full_name || `${user.first_name} ${user.last_name}`.trim() || user.username;
   return name
     .split(/\s+/)
     .slice(0, 2)
@@ -83,5 +83,5 @@ export function initials(user: StaffUser | null | undefined): string {
 
 export function displayName(user: StaffUser | null | undefined): string {
   if (!user) return "Signed out";
-  return `${user.first_name} ${user.last_name}`.trim() || user.username;
+  return user.full_name || `${user.first_name} ${user.last_name}`.trim() || user.username;
 }

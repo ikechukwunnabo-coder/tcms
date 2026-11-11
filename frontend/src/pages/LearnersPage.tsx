@@ -1,6 +1,7 @@
 import { useState } from "react";
 import type { FormEvent } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { Link } from "react-router-dom";
 import { ExternalLink, Pencil, Plus, UserPlus } from "lucide-react";
 import { getList, request } from "../api/client";
 import type { Learner, LearnerContact } from "../api/types";
@@ -42,6 +43,7 @@ interface LearnerForm {
   title: string;
   active: boolean;
   pertype: string;
+  vantage_id: string;
 }
 
 function initialForm(learner?: Learner): LearnerForm {
@@ -59,6 +61,7 @@ function initialForm(learner?: Learner): LearnerForm {
     title: learner?.title ? String(learner.title) : "",
     active: learner?.active ?? true,
     pertype: learner?.pertype ?? "TRN",
+    vantage_id: learner?.vantage_id ?? "",
   };
 }
 
@@ -111,6 +114,7 @@ function LearnerEditor({
       title: form.title ? Number(form.title) : null,
       active: form.active,
       pertype: form.pertype.trim() || "TRN",
+      vantage_id: form.vantage_id.trim(),
     });
   }
 
@@ -150,6 +154,13 @@ function LearnerEditor({
             value={form.badge_no}
             onChange={(event) => set("badge_no", event.target.value)}
             placeholder="TC-0001"
+          />
+        </Field>
+        <Field label="Vantage ID" htmlFor="vantage_id" hint="External learner identifier, if issued.">
+          <Input
+            id="vantage_id"
+            value={form.vantage_id}
+            onChange={(event) => set("vantage_id", event.target.value)}
           />
         </Field>
         <Field label="Surname" htmlFor="surname">
@@ -332,6 +343,10 @@ function LearnerDetail({ learner, onClose }: { learner: Learner; onClose: () => 
         <div>
           <p className="detail-label">Sex</p>
           <p>{learner.sex === "M" ? "Male" : learner.sex === "F" ? "Female" : "Not set"}</p>
+        </div>
+        <div>
+          <p className="detail-label">Vantage ID</p>
+          <p className="mono">{learner.vantage_id || "—"}</p>
         </div>
         <div>
           <p className="detail-label">Company</p>
@@ -524,8 +539,11 @@ export function LearnersPage() {
                         />
                       </td>
                       <td className="row-actions">
+                        <Link className="btn btn-secondary btn-sm" to={`/learners/${learner.id}`}>
+                          <ExternalLink size={14} aria-hidden="true" /> Workspace
+                        </Link>
                         <Button size="sm" onClick={() => setDetail(learner)}>
-                          <ExternalLink size={14} aria-hidden="true" /> View
+                          Quick view
                         </Button>
                         {canManage ? (
                           <Button size="sm" onClick={() => setEditor({ learner })}>

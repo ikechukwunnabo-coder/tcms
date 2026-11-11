@@ -1,7 +1,7 @@
 import { useState } from "react";
 import type { FormEvent } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useSearchParams } from "react-router-dom";
+import { Link, useSearchParams } from "react-router-dom";
 import { ArrowRight, CornerUpLeft, GitPullRequest, XCircle } from "lucide-react";
 import { getList, request } from "../api/client";
 import type { Dashboard, TrainingRecord } from "../api/types";
@@ -169,9 +169,9 @@ export function WorkflowPage() {
   return (
     <>
       <PageHeader
-        eyebrow="Training record approvals"
-        title="Workflow"
-        description="Move training records through delivery, verification and certification gates. Every transition is attributed."
+        eyebrow="Operations"
+        title="All Training Records"
+        description="Manage and view all existing training records in the database. Every workflow transition is attributed."
       />
 
       {workflow.length ? (
@@ -269,6 +269,9 @@ export function WorkflowPage() {
                         </td>
                         <td>{stage?.terminal ? "—" : roleLabelById(stage?.next_role)}</td>
                         <td className="row-actions">
+                          <Link className="btn btn-ghost btn-sm" to={`/training-records/${record.id}`}>
+                            Open
+                          </Link>
                           {actionable ? (
                             <>
                               <Button

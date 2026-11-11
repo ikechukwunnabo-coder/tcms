@@ -72,6 +72,46 @@ class CourseItem(models.Model):
         return self.name
 
 
+class CourseModuleRelation(TimeStampedModel):
+    """Axis ``/course-module-rel``: a module assigned to a course."""
+
+    course = models.ForeignKey(Course, on_delete=models.CASCADE, related_name="module_relations")
+    module = models.ForeignKey(
+        CourseModule, on_delete=models.CASCADE, related_name="course_relations"
+    )
+
+    class Meta:
+        db_table = "course_module_relation"
+        constraints = [
+            models.UniqueConstraint(
+                fields=["course", "module"], name="uq_course_module_relation"
+            )
+        ]
+
+    def __str__(self) -> str:
+        return f"{self.course_id}/{self.module_id}"
+
+
+class CourseItemRelation(TimeStampedModel):
+    """Axis ``/course-item-rel``: an item assigned to a course."""
+
+    course = models.ForeignKey(Course, on_delete=models.CASCADE, related_name="item_relations")
+    item = models.ForeignKey(
+        CourseItem, on_delete=models.CASCADE, related_name="course_relations"
+    )
+
+    class Meta:
+        db_table = "course_item_relation"
+        constraints = [
+            models.UniqueConstraint(
+                fields=["course", "item"], name="uq_course_item_relation"
+            )
+        ]
+
+    def __str__(self) -> str:
+        return f"{self.course_id}/{self.item_id}"
+
+
 class CourseModuleItem(models.Model):
     course = models.ForeignKey(Course, on_delete=models.CASCADE, related_name="module_items")
     module = models.ForeignKey(CourseModule, on_delete=models.CASCADE, related_name="+")

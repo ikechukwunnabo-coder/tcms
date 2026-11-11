@@ -1,6 +1,13 @@
 from django.contrib import admin
 
-from .models import Certificate, CertificateBatch, CertificateReminder, CertificateSequence, IDCard
+from .models import (
+    Certificate,
+    CertificateBatch,
+    CertificateReminder,
+    CertificateSequence,
+    IDCard,
+    OpitoFile,
+)
 
 
 @admin.register(Certificate)
@@ -44,3 +51,16 @@ class CertificateBatchAdmin(admin.ModelAdmin):
 
 admin.site.register(CertificateSequence)
 admin.site.register(IDCard)
+
+
+@admin.register(OpitoFile)
+class OpitoFileAdmin(admin.ModelAdmin):
+    list_display = (
+        "course",
+        "start_date",
+        "record_count",
+        "generated_at",
+        "object_key",
+    )
+    list_filter = ("start_date",)
+    search_fields = ("course__course_code", "course__name", "object_key")

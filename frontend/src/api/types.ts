@@ -17,11 +17,20 @@ export interface StaffUser {
   username: string;
   first_name: string;
   last_name: string;
+  full_name: string;
   email: string;
   is_active: boolean;
   is_staff: boolean;
   role_codes: RoleCode[];
   roles: number[];
+}
+
+export interface UserRoleAssignment {
+  id: number;
+  user: number;
+  role: number;
+  name: string;
+  code: RoleCode;
 }
 
 export interface LoginResponse {
@@ -78,6 +87,7 @@ export interface Learner {
   title: number | null;
   active: boolean;
   pertype: string;
+  vantage_id: string;
   full_name: string;
   contacts: LearnerContact[];
   documents: LearnerDocument[];
@@ -136,6 +146,32 @@ export interface Course {
   back_id_text: string;
   refresher_course: string | null;
   active: boolean;
+}
+
+export interface CourseModule {
+  id: number;
+  name: string;
+  active: boolean;
+}
+
+export interface CourseItem {
+  id: number;
+  name: string;
+  active: boolean;
+}
+
+export interface CourseModuleRelation {
+  id: number;
+  course: number;
+  module: number;
+  name: string;
+}
+
+export interface CourseItemRelation {
+  id: number;
+  course: number;
+  item: number;
+  name: string;
 }
 
 export interface CertificateType {
@@ -216,12 +252,47 @@ export interface TrainingItem {
   score: string | null;
 }
 
+export interface DocumentRecord {
+  id: number;
+  kind: string;
+  owner_type: string;
+  owner_id: number | null;
+  object_key: string;
+  mime: string;
+  size_bytes: number;
+  sha256: string;
+  generated_at: string;
+  generated_by: number | null;
+}
+
+export interface TrainingInstructor {
+  id: number;
+  training_record: number;
+  instructor: number;
+  module: number | null;
+  module_name: string;
+  training_date: string | null;
+}
+
+export interface DailyMedicalCheck {
+  id: number;
+  training_record: number;
+  check_date: string;
+  systolic: number | null;
+  diastolic: number | null;
+  notes: string;
+  created_at: string;
+  created_by: number | null;
+}
+
 export interface TrainingRecord {
   id: number;
   learner: number;
   learner_name: string;
   badge_no: string;
+  company_name: string;
   course: number;
+  course_name: string;
   course_code: string;
   session: number | null;
   enrolment: number | null;
@@ -232,9 +303,73 @@ export interface TrainingRecord {
   status_code: string;
   reject_reason: string;
   instructor: string;
+  foet_scan: number | null;
+  payment_proof: number | null;
+  welcome_letter: number | null;
   items: TrainingItem[];
+  training_instructors: TrainingInstructor[];
+  medical_checks: DailyMedicalCheck[];
   created_at: string;
   updated_at: string;
+}
+
+export interface ApprovalHistory {
+  id: number;
+  training_record: number;
+  status: number;
+  full_name: string;
+  updated_at: string;
+}
+
+export interface JoiningInstruction {
+  id: number;
+  enrolment: number;
+  session_id: number | null;
+  version: number;
+  is_current: boolean;
+  delivery_status: string;
+  sent_to: string;
+  sent_at: string | null;
+  issued_at: string;
+  payload: Record<string, unknown>;
+}
+
+export interface TrainingWorkspace extends TrainingRecord {
+  learner_detail: Learner;
+  course_detail: Course;
+  status_detail: WorkflowStatus;
+  foet_scan_document: DocumentRecord | null;
+  payment_proof_document: DocumentRecord | null;
+  welcome_letter_document: DocumentRecord | null;
+  medicals: Medical[];
+  certificates: Certificate[];
+  id_cards: IDCard[];
+  status_history: ApprovalHistory[];
+  joining_instruction: JoiningInstruction | null;
+}
+
+export interface MyActivity {
+  pending: TrainingRecord[];
+  recent: {
+    id: number;
+    training_record: number;
+    record: TrainingRecord;
+    action: string;
+    reason: string;
+    acted_at: string | null;
+  }[];
+}
+
+export interface BulkActionResult {
+  results: {
+    id: number;
+    ok: boolean;
+    status?: number;
+    code?: string;
+    error?: string;
+  }[];
+  succeeded: number;
+  failed: number;
 }
 
 export interface Certificate {
@@ -268,6 +403,16 @@ export interface Certificate {
   released_at: string | null;
   renewed_by_certificate: number | null;
   batch: number | null;
+}
+
+export interface CertificateVerification {
+  is_valid: boolean;
+  status: string;
+  certificate_no: string;
+  full_name: string;
+  course: string;
+  issued: string | null;
+  expiry: string | null;
 }
 
 export interface IDCard {
@@ -468,4 +613,175 @@ export interface ReportDef {
   name: string;
   roles: number[];
   sql_view: string;
+}
+
+export interface ReportYearRange {
+  min: number;
+  max: number;
+  default: number;
+}
+
+export interface TrainingRecordReportRow {
+  row_num: number;
+  id: number;
+  first_name: string;
+  last_name: string;
+  badge_no: string;
+  birth_date: string;
+  company: string;
+  course: string;
+  course_code: string;
+  start: string;
+  end: string;
+  expiry: string;
+  days: number | "";
+  certificate: string;
+}
+
+export interface CourseMonthRow {
+  c: number;
+  course: string;
+  course_code: string;
+  month: string;
+  month_no: number;
+  value: number;
+  course_total?: number;
+}
+
+export interface DelegateMonthRow {
+  month: string;
+  month_no: number;
+  value: number;
+}
+
+export interface CourseTypeRow {
+  type: string;
+  course: string;
+  count: number;
+}
+
+export interface RoleActivityRow {
+  id: number;
+  user_id: number | null;
+  user: string;
+  training_record: number;
+  badge_no: string;
+  learner: string;
+  course: string;
+  step: string;
+  action: string;
+  completed: string;
+}
+
+export interface RoleActivitySummaryRow {
+  user_id: number | null;
+  username: string;
+  name: string;
+  count: number;
+}
+
+export interface RoleOption {
+  id: number;
+  code: string;
+  name: string;
+}
+
+export interface OpitoMonthlyRow {
+  id: number;
+  course: string;
+  course_code: string;
+  opito_reg_code: string;
+  learner: string;
+  badge_no: string;
+  opito_learner_id: string;
+  start: string;
+  end: string;
+  completed: string;
+}
+
+export interface FlowStatusRow {
+  id: number;
+  status: number;
+  code: string;
+  name: string;
+  count: number;
+  terminal: boolean;
+  level: "terminal" | "critical" | "backlog" | "normal";
+  next_role: number | null;
+  next_role_name: string;
+}
+
+export interface FlowStatusReport {
+  data: FlowStatusRow[];
+  total: number;
+  summary: {
+    active_records: number;
+    terminal_records: number;
+    backlog_records: number;
+    critical_records: number;
+    backlog_stages: number;
+    critical_stages: number;
+  };
+  thresholds: {
+    backlog: number;
+    critical: number;
+  };
+  next_roles: {
+    role: number;
+    name: string;
+    count: number;
+    stages: string[];
+  }[];
+}
+
+export interface OpitoCohort {
+  id: string;
+  name: string;
+  course: number;
+  course_code: string;
+  product_code: string;
+  start: string;
+  start_date: string;
+  learners: number;
+  record_count: number;
+  object_key: string;
+  file_name: string;
+  fileName: string;
+  file_id: number | null;
+  generated_at: string | null;
+}
+
+export interface OpitoFileResult {
+  id: number;
+  course: number;
+  course_code: string;
+  product_code: string;
+  start_date: string;
+  record_count: number;
+  object_key: string;
+  file_name: string;
+  fileName: string;
+  generated_at: string | null;
+  download_url: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface OpitoMissingVantage {
+  learnerId: number;
+  fullName: string;
+  badge: string;
+}
+
+export interface BackupResult {
+  file_name: string;
+  bytes: number;
+  created_at: string;
+}
+
+export interface BackupTestResult {
+  status: string;
+  message: string;
+  free_bytes: number;
+  checked_at: string;
 }

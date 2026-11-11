@@ -361,15 +361,23 @@ def _nominee_badge(account: CorporateAccount) -> str:
     return badge
 
 
-def _assert_not_duplicate_nominee(account: CorporateAccount, surname: str, first_name: str,
-                                  birth_date) -> None:
+def _assert_not_duplicate_nominee(
+    account: CorporateAccount,
+    surname: str,
+    first_name: str,
+    birth_date,
+    *,
+    exclude_id: int | None = None,
+) -> None:
     dup = Learner.objects.filter(
         corporate_account=account,
         surname__iexact=surname.strip(),
         first_name__iexact=(first_name or "").strip(),
         birth_date=birth_date,
-    ).exists()
-    if dup:
+    )
+    if exclude_id is not None:
+        dup = dup.exclude(pk=exclude_id)
+    if dup.exists():
         raise DuplicateNominee("a nominee with the same name and date of birth already exists")
 
 
@@ -430,6 +438,7 @@ def update_nominee(learner: Learner, **changes) -> Learner:
             updates.get("surname", learner.surname),
             updates.get("first_name", learner.first_name),
             updates["birth_date"],
+            exclude_id=learner.pk,
         )
     for field, value in updates.items():
         setattr(learner, field, value)

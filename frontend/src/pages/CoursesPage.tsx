@@ -1,9 +1,18 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import type { FormEvent } from "react";
-import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { BookOpen, Pencil } from "lucide-react";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { BookOpen, ListChecks, Pencil } from "lucide-react";
 import { request } from "../api/client";
-import type { CertificateType, Course } from "../api/types";
+import type {
+  CertificateType,
+  Course,
+  CourseItem,
+  CourseItemRelation,
+  CourseModule,
+  CourseModuleRelation,
+} from "../api/types";
+import { useAuth } from "../auth/context";
+import { USER_ADMIN_ROLES, can } from "../auth/roles";
 import {
   Badge,
   Button,
@@ -229,10 +238,179 @@ function CourseEditor({
   );
 }
 
+function CourseContentEditor({
+  course,
+  modules,
+  items,
+  onClose,
+}: {
+  course: Course;
+  modules: CourseModule[];
+  items: CourseItem[];
+  onClose: () => void;
+}) {
+  const queryClient = useQueryClient();
+  const toast = useToast();
+  const [moduleIds, setModuleIds] = useState<number[] | null>(null);
+  const [itemIds, setItemIds] = useState<number[] | null>(null);
+
+  const assignedModules = useQuery({
+    queryKey: ["course-module-rel", course.id],
+    queryFn: () => request<CourseModuleRelation[]>(`/course-module-rel/${course.id}`),
+  });
+  const assignedItems = useQuery({
+    queryKey: ["course-item-rel", course.id],
+    queryFn: () => request<CourseItemRelation[]>(`/course-item-rel/${course.id}`),
+  });
+
+  useEffect(() => {
+    if (assignedModules.data && moduleIds === null) {
+      setModuleIds(assignedModules.data.map((row) => row.module));
+    }
+  }, [assignedModules.data, moduleIds]);
+  useEffect(() => {
+    if (assignedItems.data && itemIds === null) {
+      setItemIds(assignedItems.data.map((row) => row.item));
+    }
+  }, [assignedItems.data, itemIds]);
+
+  const save = useMutation({
+    mutationFn: async () => {
+      const selectedModules = new Set(moduleIds ?? []);
+      const selectedItems = new Set(itemIds ?? []);
+      const initialModules = new Set(assignedModules.data?.map((row) => row.module) ?? []);
+      const initialItems = new Set(assignedItems.data?.map((row) => row.item) ?? []);
+      const addedModules = [...selectedModules].filter((id) => !initialModules.has(id));
+      const addedItems = [...selectedItems].filter((id) => !initialItems.has(id));
+      const removedModules =
+        assignedModules.data?.filter((row) => !selectedModules.has(row.module)) ?? [];
+      const removedItems =
+        assignedItems.data?.filter((row) => !selectedItems.has(row.item)) ?? [];
+
+      await Promise.all([
+        addedModules.length
+          ? request("/course-module-rel", {
+              method: "POST",
+              body: JSON.stringify({ parent: course.id, children: addedModules }),
+            })
+          : null,
+        addedItems.length
+          ? request("/course-item-rel", {
+              method: "POST",
+              body: JSON.stringify({ parent: course.id, children: addedItems }),
+            })
+          : null,
+        ...removedModules.map((row) =>
+          request(`/course-module-rel/${row.id}`, { method: "DELETE" }),
+        ),
+        ...removedItems.map((row) =>
+          request(`/course-item-rel/${row.id}`, { method: "DELETE" }),
+        ),
+      ]);
+    },
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ["course-module-rel", course.id] });
+      void queryClient.invalidateQueries({ queryKey: ["course-item-rel", course.id] });
+      toast.push(`Content updated for ${course.course_code}.`);
+      onClose();
+    },
+  });
+
+  const loading = assignedModules.isLoading || assignedItems.isLoading;
+  const failed = assignedModules.isError || assignedItems.isError;
+  const ready = moduleIds !== null && itemIds !== null;
+
+  function toggle(id: number, values: number[], setter: (next: number[]) => void) {
+    setter(values.includes(id) ? values.filter((value) => value !== id) : [...values, id]);
+  }
+
+  return (
+    <Modal
+      open
+      onClose={onClose}
+      title={`Manage content — ${course.course_code}`}
+      description="Assign the shared modules and checklist items that make up this course."
+      footer={
+        <>
+          <Button onClick={onClose}>Cancel</Button>
+          <Button
+            type="submit"
+            form="course-content-form"
+            variant="primary"
+            busy={save.isPending}
+            disabled={!ready || loading || failed}
+          >
+            Save content
+          </Button>
+        </>
+      }
+    >
+      <form
+        id="course-content-form"
+        className="form-stack"
+        onSubmit={(event) => {
+          event.preventDefault();
+          save.mutate();
+        }}
+      >
+        {save.isError ? (
+          <div className="form-error" role="alert">
+            {errorMessage(save.error)}
+          </div>
+        ) : null}
+        {loading ? <Loading rows={4} /> : null}
+        {failed ? (
+          <ErrorState
+            message={errorMessage(assignedModules.error ?? assignedItems.error)}
+            retry={() => {
+              void assignedModules.refetch();
+              void assignedItems.refetch();
+            }}
+          />
+        ) : null}
+        {ready ? (
+          <div className="relation-columns">
+            <fieldset className="relation-list">
+              <legend>Modules</legend>
+              {modules.map((module) => (
+                <label key={module.id}>
+                  <input
+                    type="checkbox"
+                    checked={moduleIds.includes(module.id)}
+                    onChange={() => toggle(module.id, moduleIds, setModuleIds)}
+                  />
+                  {module.name}
+                </label>
+              ))}
+              {!modules.length ? <p className="muted">No modules defined.</p> : null}
+            </fieldset>
+            <fieldset className="relation-list">
+              <legend>Items</legend>
+              {items.map((item) => (
+                <label key={item.id}>
+                  <input
+                    type="checkbox"
+                    checked={itemIds.includes(item.id)}
+                    onChange={() => toggle(item.id, itemIds, setItemIds)}
+                  />
+                  {item.name}
+                </label>
+              ))}
+              {!items.length ? <p className="muted">No items defined.</p> : null}
+            </fieldset>
+          </div>
+        ) : null}
+      </form>
+    </Modal>
+  );
+}
+
 export function CoursesPage() {
+  const { user } = useAuth();
   const reference = useReference();
   const [query, setQuery] = useState("");
   const [editing, setEditing] = useState<Course | null>(null);
+  const [contentCourse, setContentCourse] = useState<Course | null>(null);
 
   if (reference.isLoading) return <Loading rows={8} />;
   if (reference.isError || !reference.data) {
@@ -308,6 +486,11 @@ export function CoursesPage() {
                       </Badge>
                     </td>
                     <td className="row-actions">
+                      {can(user, USER_ADMIN_ROLES) ? (
+                        <Button size="sm" onClick={() => setContentCourse(course)}>
+                          <ListChecks size={14} aria-hidden="true" /> Content
+                        </Button>
+                      ) : null}
                       <Button size="sm" onClick={() => setEditing(course)}>
                         <Pencil size={14} aria-hidden="true" /> Edit
                       </Button>
@@ -334,6 +517,14 @@ export function CoursesPage() {
           course={editing}
           certificateTypes={certificateTypes}
           onClose={() => setEditing(null)}
+        />
+      ) : null}
+      {contentCourse ? (
+        <CourseContentEditor
+          course={contentCourse}
+          modules={reference.data.modules}
+          items={reference.data.items}
+          onClose={() => setContentCourse(null)}
         />
       ) : null}
     </>

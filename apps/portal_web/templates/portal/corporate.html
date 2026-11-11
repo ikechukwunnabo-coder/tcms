@@ -1,0 +1,143 @@
+{% extends "portal/base.html" %}
+{% block title %}Corporate workspace — TASL Training Centre Portal{% endblock %}
+
+{% block content %}
+<section class="shell">
+  <p class="eyebrow">Corporate</p>
+  <h1>Corporate workspace</h1>
+
+  {% if not account %}
+    <div class="panel">
+      <h2>Create your corporate account</h2>
+      <p class="panel-lede">
+        Corporate leads can add nominees and receive certificate bundles for
+        everyone on the account. Credit limits and payment terms are agreed with
+        TASL staff.
+      </p>
+      <form method="post" novalidate>
+        {% csrf_token %}
+        {% if account_form.non_field_errors %}
+          <div class="alert alert-error" role="alert">{{ account_form.non_field_errors }}</div>
+        {% endif %}
+        {% for field in account_form %}
+          <div class="field">
+            <label for="{{ field.id_for_label }}">{{ field.label }}</label>
+            {{ field }}
+            {% for error in field.errors %}
+              <p class="field-error" id="{{ field.id_for_label }}_error">{{ error }}</p>
+            {% endfor %}
+          </div>
+        {% endfor %}
+        <button type="submit" class="btn btn-primary">Create corporate account</button>
+      </form>
+    </div>
+  {% else %}
+    <div class="panel">
+      <div class="panel-head">
+        <div>
+          <h2>{{ account.name }}</h2>
+          <p class="muted">Lead email {{ account.lead_email }}{% if account.company %} · {{ account.company.name }}{% endif %}</p>
+        </div>
+        <form method="post">
+          {% csrf_token %}
+          <input type="hidden" name="action" value="bundle">
+          <button type="submit" class="btn btn-primary btn-sm">Email certificate bundle</button>
+        </form>
+      </div>
+      <p class="muted">
+        {{ nominees|length }} nominee{{ nominees|length|pluralize }} ·
+        {{ batches|length }} certificate bundle{{ batches|length|pluralize }}
+      </p>
+    </div>
+
+    <div class="panel">
+      <h2>Nominees</h2>
+      {% if nominees %}
+        <div class="table-scroll">
+          <table class="data-table">
+            <caption class="visually-hidden">Nominees on this corporate account</caption>
+            <thead>
+              <tr>
+                <th scope="col">Name</th>
+                <th scope="col">Badge no.</th>
+                <th scope="col">Date of birth</th>
+                <th scope="col"><span class="visually-hidden">Actions</span></th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for learner in nominees %}
+                <tr>
+                  <td>{{ learner.surname }}{% if learner.first_name %}, {{ learner.first_name }}{% endif %}</td>
+                  <td class="mono">{{ learner.badge_no }}</td>
+                  <td>{{ learner.birth_date|date:"j M Y"|default:"—" }}</td>
+                  <td class="actions">
+                    <a class="btn btn-outline btn-sm" href="{% url 'portal_web:corporate-nominee-edit' learner.pk %}">Edit</a>
+                    <form method="post" action="{% url 'portal_web:corporate-nominee-remove' learner.pk %}" class="inline-form">
+                      {% csrf_token %}
+                      <button type="submit" class="btn btn-ghost btn-sm">Remove</button>
+                    </form>
+                  </td>
+                </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      {% else %}
+        <p class="muted">No nominees have been added to this account yet.</p>
+      {% endif %}
+    </div>
+
+    <div class="panel">
+      <h2>Add a nominee</h2>
+      <form method="post" novalidate>
+        {% csrf_token %}
+        <input type="hidden" name="action" value="add-nominee">
+        {% if nominee_form.non_field_errors %}
+          <div class="alert alert-error" role="alert">{{ nominee_form.non_field_errors }}</div>
+        {% endif %}
+        {% for field in nominee_form %}
+          <div class="field">
+            <label for="{{ field.id_for_label }}">{{ field.label }}</label>
+            {{ field }}
+            {% for error in field.errors %}
+              <p class="field-error" id="{{ field.id_for_label }}_error">{{ error }}</p>
+            {% endfor %}
+          </div>
+        {% endfor %}
+        <button type="submit" class="btn btn-primary">Add nominee</button>
+      </form>
+    </div>
+
+    <div class="panel">
+      <h2>Certificate bundles</h2>
+      {% if batches %}
+        <div class="table-scroll">
+          <table class="data-table">
+            <caption class="visually-hidden">Certificate bundles sent to this account</caption>
+            <thead>
+              <tr>
+                <th scope="col">Created</th>
+                <th scope="col">Certificates</th>
+                <th scope="col">Status</th>
+                <th scope="col">Delivered to</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for batch in batches %}
+                <tr>
+                  <td>{{ batch.created_at|date:"j M Y H:i" }}</td>
+                  <td>{{ batch.certificate_count }}</td>
+                  <td><span class="pill pill-{{ batch.status }}">{{ batch.get_status_display }}</span></td>
+                  <td>{{ batch.delivered_to|default:"—" }}</td>
+                </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      {% else %}
+        <p class="muted">No certificate bundles have been sent yet.</p>
+      {% endif %}
+    </div>
+  {% endif %}
+</section>
+{% endblock %}

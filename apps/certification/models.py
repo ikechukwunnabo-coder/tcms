@@ -167,6 +167,30 @@ class CertificateBatch(TimeStampedModel):
         return f"batch:{self.pk} acct={self.corporate_account_id} ({self.status})"
 
 
+class OpitoFile(TimeStampedModel):
+    """Generated OPITO CSV for one course/start-date cohort."""
+
+    course = models.ForeignKey(
+        "catalogue.Course", on_delete=models.CASCADE, related_name="opito_files"
+    )
+    start_date = models.DateField()
+    object_key = models.CharField(max_length=512, blank=True, default="")
+    record_count = models.PositiveIntegerField(default=0)
+    generated_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        db_table = "opito_file"
+        constraints = [
+            models.UniqueConstraint(
+                fields=["course", "start_date"], name="uq_opito_file_cohort"
+            )
+        ]
+        ordering = ["-start_date", "course__name"]
+
+    def __str__(self) -> str:
+        return f"opito:{self.course_id}@{self.start_date}"
+
+
 class IDCard(models.Model):
     learner = models.ForeignKey(Learner, on_delete=models.CASCADE, related_name="id_cards")
     training_record = models.ForeignKey(

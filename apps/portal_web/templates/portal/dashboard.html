@@ -27,7 +27,10 @@
 
   {% if is_lead %}
     <div class="panel">
-      <h2>Nominees</h2>
+      <div class="panel-head">
+        <h2>Nominees</h2>
+        <a class="btn btn-outline btn-sm" href="{% url 'portal_web:corporate' %}">Manage nominees</a>
+      </div>
       {% if learners %}
         <div class="table-scroll">
           <table class="data-table">

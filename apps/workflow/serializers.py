@@ -39,3 +39,11 @@ class WorkflowActionSerializer(serializers.Serializer):
         choices=["approve", "reject", "cancel"], default="approve"
     )
     reason = serializers.CharField(required=False, allow_blank=True, default="")
+
+
+class BulkWorkflowActionSerializer(serializers.Serializer):
+    ids = serializers.ListField(child=serializers.IntegerField(), allow_empty=False)
+    action = serializers.ChoiceField(
+        choices=["approve", "reject", "cancel"], default="approve"
+    )
+    reason = serializers.CharField(required=False, allow_blank=True, default="")

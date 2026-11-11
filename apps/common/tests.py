@@ -1,7 +1,12 @@
+import gzip
+import json
+import tempfile
 from datetime import timedelta
+from pathlib import Path
 
 from django.core.cache import cache
 from django.core.management import call_command
+from django.test import override_settings
 from django.urls import reverse
 from django.utils import timezone
 from rest_framework.authtoken.models import Token
@@ -200,3 +205,56 @@ class ReportAPITests(APITestCase):
         response = self.client.get("/api/v1/reports/flow-status/")
         self.assertEqual(response.status_code, 200)
         self.assertEqual(len(response.data["data"]), 14)
+
+
+class BackupAPITests(APITestCase):
+    @classmethod
+    def setUpTestData(cls):
+        call_command("seed_roles", verbosity=0)
+        cls.system_admin = User.objects.create_user("backup-admin", password="pw")
+        cls.system_admin.roles.add(Role.objects.get(pk=1))
+        cls.medic = User.objects.create_user("backup-medic", password="pw")
+        cls.medic.roles.add(Role.objects.get(pk=4))
+
+    def _auth(self, user):
+        token, _ = Token.objects.get_or_create(user=user)
+        self.client.credentials(HTTP_AUTHORIZATION="Token " + token.key)
+
+    def test_system_admin_can_create_backup_snapshot(self):
+        self._auth(self.system_admin)
+        with tempfile.TemporaryDirectory() as directory:
+            with override_settings(BACKUP_DIR=Path(directory)):
+                response = self.client.post("/api/v1/backup/backup")
+                self.assertEqual(response.status_code, 201, response.data)
+                target = Path(directory) / response.data["file_name"]
+                self.assertTrue(target.exists())
+                with gzip.open(target, "rt", encoding="utf-8") as handle:
+                    payload = json.load(handle)
+                self.assertGreater(len(payload), 0)
+                self.assertTrue(
+                    any(row["model"] == "accounts.user" for row in payload)
+                )
+        self.assertTrue(
+            AuditEvent.objects.filter(
+                actor=self.system_admin, action="backup.created"
+            ).exists()
+        )
+
+    def test_backup_requires_system_admin(self):
+        self._auth(self.medic)
+        self.assertEqual(self.client.post("/api/v1/backup/backup").status_code, 403)
+        self.assertEqual(self.client.post("/api/v1/backup/test").status_code, 403)
+
+    def test_storage_probe_reports_success_and_cleans_up(self):
+        self._auth(self.system_admin)
+        with tempfile.TemporaryDirectory() as directory:
+            with override_settings(BACKUP_DIR=Path(directory)):
+                response = self.client.post("/api/v1/backup/test")
+                self.assertEqual(response.status_code, 200, response.data)
+                self.assertEqual(response.data["status"], "ok")
+                self.assertEqual(list(Path(directory).iterdir()), [])
+        self.assertTrue(
+            AuditEvent.objects.filter(
+                actor=self.system_admin, action="backup.tested"
+            ).exists()
+        )

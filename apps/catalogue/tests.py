@@ -4,7 +4,14 @@ from rest_framework.authtoken.models import Token
 from rest_framework.test import APITestCase
 
 from apps.accounts.models import Role, User
-from apps.catalogue.models import CertificateType, Course
+from apps.catalogue.models import (
+    CertificateType,
+    Course,
+    CourseItem,
+    CourseItemRelation,
+    CourseModule,
+    CourseModuleRelation,
+)
 from apps.common.enums import RoleCode
 
 
@@ -61,3 +68,70 @@ class CatalogueAPITests(APITestCase):
         self._auth(self.medic)
         self.assertEqual(self.client.get("/api/v1/course-modules/").status_code, 200)
         self.assertEqual(self.client.get("/api/v1/course-items/").status_code, 200)
+
+    def test_axis_course_item_relation_lifecycle(self):
+        course = Course.objects.create(course_code="REL01", name="Relation course")
+        item = CourseItem.objects.create(name="Relation item")
+        other = CourseItem.objects.create(name="Available item")
+        self._auth(self.admin)
+
+        response = self.client.post(
+            "/api/v1/course-item-rel", [[[course.id, item.id]]], format="json"
+        )
+        self.assertEqual(response.status_code, 201, response.data)
+        relation_id = response.data[0]["id"]
+        self.assertEqual(
+            self.client.post(
+                "/api/v1/course-item-rel",
+                [[course.id, item.id]],
+                format="json",
+            ).status_code,
+            201,
+        )
+        self.assertEqual(CourseItemRelation.objects.count(), 1)
+
+        assigned = self.client.get(f"/api/v1/course-item-rel/{course.id}")
+        self.assertEqual(assigned.status_code, 200)
+        self.assertEqual([row["item"] for row in assigned.data], [item.id])
+        available = self.client.get(
+            f"/api/v1/course-item-rel/{course.id}/available"
+        )
+        available_ids = [row["id"] for row in available.data]
+        self.assertIn(other.id, available_ids)
+        self.assertNotIn(item.id, available_ids)
+
+        self._auth(self.medic)
+        self.assertEqual(
+            self.client.post(
+                "/api/v1/course-item-rel",
+                [[course.id, other.id]],
+                format="json",
+            ).status_code,
+            403,
+        )
+        self.assertEqual(
+            self.client.get(f"/api/v1/course-item-rel/{course.id}").status_code, 200
+        )
+
+        self._auth(self.admin)
+        response = self.client.delete(f"/api/v1/course-item-rel/{relation_id}")
+        self.assertEqual(response.status_code, 204)
+        self.assertFalse(CourseItemRelation.objects.exists())
+
+    def test_axis_course_module_relation_supports_object_payload(self):
+        course = Course.objects.create(course_code="REL02", name="Module course")
+        module = CourseModule.objects.create(name="Module relation")
+        self._auth(self.admin)
+        response = self.client.post(
+            "/api/v1/course-module-rel",
+            {"parent": course.id, "children": [module.id]},
+            format="json",
+        )
+        self.assertEqual(response.status_code, 201, response.data)
+        relation = CourseModuleRelation.objects.get()
+        self.assertEqual(relation.course, course)
+        self.assertEqual(relation.module, module)
+        self.assertEqual(
+            self.client.get(f"/api/v1/course-module-rel/{course.id}").data[0]["module"],
+            module.id,
+        )
