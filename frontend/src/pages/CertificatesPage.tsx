@@ -3,13 +3,20 @@ import type { FormEvent } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Award, CreditCard, Download, PenLine, Printer, RotateCcw, Send, Upload } from "lucide-react";
 import { downloadFile, getList, request } from "../api/client";
-import type { Certificate, IDCard, TrainingRecord } from "../api/types";
+import type {
+  Certificate,
+  CertificateSequence,
+  CourseItem,
+  IDCard,
+  TrainingRecord,
+} from "../api/types";
 import { useAuth } from "../auth/context";
 import {
   CERTIFICATE_ISSUE,
   CERTIFICATE_MD,
   CERTIFICATE_PRINT,
   CERTIFICATE_RELEASE,
+  USER_ADMIN_ROLES,
   can,
 } from "../auth/roles";
 import {
@@ -389,10 +396,211 @@ function CertificateDocumentsModal({
   );
 }
 
+function SequenceEditor({
+  sequence,
+  items,
+  onClose,
+}: {
+  sequence?: CertificateSequence;
+  items: CourseItem[];
+  onClose: () => void;
+}) {
+  const queryClient = useQueryClient();
+  const toast = useToast();
+  const [year, setYear] = useState(
+    sequence ? String(sequence.course_year) : String(new Date().getFullYear()),
+  );
+  const [itemId, setItemId] = useState(sequence ? String(sequence.item_id) : "");
+  const [lastNumber, setLastNumber] = useState(
+    sequence ? String(sequence.last_number) : "0",
+  );
+  const save = useMutation({
+    mutationFn: () => {
+      const payload = {
+        course_year: Number(year),
+        item_id: Number(itemId),
+        last_number: Number(lastNumber),
+      };
+      return sequence
+        ? request<CertificateSequence>(`/certificate-sequences/${sequence.id}/`, {
+            method: "PATCH",
+            body: JSON.stringify(payload),
+          })
+        : request<CertificateSequence>("/certificate-sequences/", {
+            method: "POST",
+            body: JSON.stringify(payload),
+          });
+    },
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ["certificate-sequences"] });
+      toast.push("Certificate sequence saved.");
+      onClose();
+    },
+  });
+
+  return (
+    <Modal
+      open
+      onClose={onClose}
+      title={sequence ? "Edit certificate sequence" : "New certificate sequence"}
+      footer={
+        <>
+          <Button onClick={onClose}>Cancel</Button>
+          <Button
+            type="submit"
+            form="sequence-form"
+            variant="primary"
+            busy={save.isPending}
+          >
+            Save sequence
+          </Button>
+        </>
+      }
+    >
+      <form
+        id="sequence-form"
+        className="form-grid"
+        onSubmit={(event: FormEvent) => {
+          event.preventDefault();
+          save.mutate();
+        }}
+      >
+        {save.isError ? (
+          <div className="form-error form-span" role="alert">
+            {errorMessage(save.error)}
+          </div>
+        ) : null}
+        <Field label="Course year" htmlFor="sequence-year">
+          <Input
+            id="sequence-year"
+            type="number"
+            min="2000"
+            max="2200"
+            value={year}
+            onChange={(event) => setYear(event.target.value)}
+            required
+          />
+        </Field>
+        <Field label="Certificate item" htmlFor="sequence-item">
+          <Select
+            id="sequence-item"
+            value={itemId}
+            onChange={(event) => setItemId(event.target.value)}
+            required
+          >
+            <option value="">Choose item</option>
+            {items.map((item) => (
+              <option value={item.id} key={item.id}>
+                {item.name}
+              </option>
+            ))}
+          </Select>
+        </Field>
+        <Field
+          label="Last number"
+          htmlFor="sequence-number"
+          hint="The next certificate continues from this number."
+          className="form-span"
+        >
+          <Input
+            id="sequence-number"
+            type="number"
+            min="0"
+            value={lastNumber}
+            onChange={(event) => setLastNumber(event.target.value)}
+            required
+          />
+        </Field>
+      </form>
+    </Modal>
+  );
+}
+
+function SequencesTab() {
+  const [editing, setEditing] = useState<CertificateSequence | null | undefined>(
+    undefined,
+  );
+  const sequences = useQuery({
+    queryKey: ["certificate-sequences"],
+    queryFn: () =>
+      getList<CertificateSequence>("/certificate-sequences/", { page_size: 200 }),
+  });
+  const items = useQuery({
+    queryKey: ["certificate-sequence-items"],
+    queryFn: () => getList<CourseItem>("/course-items/", { page_size: 200 }),
+  });
+  const itemName = new Map((items.data?.data ?? []).map((item) => [item.id, item.name]));
+
+  return (
+    <>
+      <Card
+        title="Certificate sequences"
+        aside={
+          <Button size="sm" variant="primary" onClick={() => setEditing(null)}>
+            <Award size={15} aria-hidden="true" /> New sequence
+          </Button>
+        }
+      >
+        {sequences.isLoading ? <Loading rows={4} /> : null}
+        {sequences.isError ? (
+          <ErrorState
+            message={errorMessage(sequences.error)}
+            retry={() => void sequences.refetch()}
+          />
+        ) : null}
+        {sequences.data ? (
+          <div className="table-wrap">
+            <table className="table">
+              <thead>
+                <tr>
+                  <th>Course year</th>
+                  <th>Certificate item</th>
+                  <th className="num">Last number</th>
+                  <th>Updated</th>
+                  <th />
+                </tr>
+              </thead>
+              <tbody>
+                {sequences.data.data.map((row) => (
+                  <tr key={row.id}>
+                    <td>{row.course_year}</td>
+                    <td>{itemName.get(row.item_id) ?? `Item #${row.item_id}`}</td>
+                    <td className="num">{row.last_number}</td>
+                    <td>{formatDate(row.updated_at)}</td>
+                    <td>
+                      <Button size="sm" onClick={() => setEditing(row)}>
+                        <PenLine size={14} aria-hidden="true" /> Edit
+                      </Button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        ) : null}
+        {sequences.data && !sequences.data.data.length ? (
+          <EmptyState
+            title="No sequences"
+            body="Create a sequence to control certificate numbering for a year and item."
+          />
+        ) : null}
+      </Card>
+      {editing !== undefined ? (
+        <SequenceEditor
+          sequence={editing ?? undefined}
+          items={items.data?.data ?? []}
+          onClose={() => setEditing(undefined)}
+        />
+      ) : null}
+    </>
+  );
+}
+
 export function CertificatesPage() {
   const { user } = useAuth();
   const toast = useToast();
   const queryClient = useQueryClient();
+  const [tab, setTab] = useState<"certificates" | "sequences">("certificates");
   const [query, setQuery] = useState("");
   const [page, setPage] = useState(1);
   const [issuing, setIssuing] = useState(false);
@@ -454,6 +662,7 @@ export function CertificatesPage() {
   const canPrint = can(user, CERTIFICATE_PRINT);
   const canSign = can(user, CERTIFICATE_MD);
   const canRelease = can(user, CERTIFICATE_RELEASE);
+  const canAdmin = can(user, USER_ADMIN_ROLES);
 
   return (
     <>
@@ -462,17 +671,39 @@ export function CertificatesPage() {
         title="Certificates"
         description="Issued, signed and released certificates, with renewal requests in one trail."
         actions={
-          <>
-            <CsvButton dataset="certificates" label="Export certificates" />
-            {canIssue ? (
-              <Button variant="primary" onClick={() => setIssuing(true)}>
-                <Award size={16} aria-hidden="true" /> Issue certificate
-              </Button>
-            ) : null}
-          </>
+          tab === "certificates" ? (
+            <>
+              <CsvButton dataset="certificates" label="Export certificates" />
+              {canIssue ? (
+                <Button variant="primary" onClick={() => setIssuing(true)}>
+                  <Award size={16} aria-hidden="true" /> Issue certificate
+                </Button>
+              ) : null}
+            </>
+          ) : null
         }
       />
 
+      {canAdmin ? (
+        <div className="tabs" role="tablist" aria-label="Certification sections">
+          {(["certificates", "sequences"] as const).map((item) => (
+            <button
+              key={item}
+              type="button"
+              role="tab"
+              aria-selected={tab === item}
+              className={tab === item ? "tab active" : "tab"}
+              onClick={() => setTab(item)}
+            >
+              {item === "certificates" ? "Certificates" : "Certificate sequences"}
+            </button>
+          ))}
+        </div>
+      ) : null}
+
+      {tab === "sequences" && canAdmin ? <SequencesTab /> : null}
+
+      {tab === "certificates" ? (
       <Card>
         <Toolbar>
           <SearchInput
@@ -584,6 +815,7 @@ export function CertificatesPage() {
           />
         )}
       </Card>
+      ) : null}
 
       <ConfirmDialog
         open={Boolean(pendingAction)}

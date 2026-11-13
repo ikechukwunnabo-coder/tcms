@@ -3526,6 +3526,208 @@ paths:
               schema:
                 $ref: '#/components/schemas/Document'
           description: ''
+  /api/v1/employee-pay-elements/:
+    get:
+      operationId: v1_employee_pay_elements_list
+      description: |-
+        ModelViewSet guarded by :class:`RolePermission`.
+
+        Subclasses set ``required_roles`` / ``write_roles`` (tuples of RoleCode).
+      parameters:
+      - in: query
+        name: element
+        schema:
+          type: integer
+      - in: query
+        name: employee
+        schema:
+          type: integer
+      - name: ordering
+        required: false
+        in: query
+        description: Which field to use when ordering the results.
+        schema:
+          type: string
+      - name: page
+        required: false
+        in: query
+        description: A page number within the paginated result set.
+        schema:
+          type: integer
+      - name: page_size
+        required: false
+        in: query
+        description: Number of results to return per page.
+        schema:
+          type: integer
+      - name: search
+        required: false
+        in: query
+        description: A search term.
+        schema:
+          type: string
+      tags:
+      - v1
+      security:
+      - tokenAuth: []
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaginatedEmployeePayElementList'
+          description: ''
+    post:
+      operationId: v1_employee_pay_elements_create
+      description: |-
+        ModelViewSet guarded by :class:`RolePermission`.
+
+        Subclasses set ``required_roles`` / ``write_roles`` (tuples of RoleCode).
+      tags:
+      - v1
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/EmployeePayElement'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/EmployeePayElement'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/EmployeePayElement'
+        required: true
+      security:
+      - tokenAuth: []
+      - cookieAuth: []
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/EmployeePayElement'
+          description: ''
+  /api/v1/employee-pay-elements/{id}/:
+    get:
+      operationId: v1_employee_pay_elements_retrieve
+      description: |-
+        ModelViewSet guarded by :class:`RolePermission`.
+
+        Subclasses set ``required_roles`` / ``write_roles`` (tuples of RoleCode).
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: A unique integer value identifying this employee pay element.
+        required: true
+      tags:
+      - v1
+      security:
+      - tokenAuth: []
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/EmployeePayElement'
+          description: ''
+    put:
+      operationId: v1_employee_pay_elements_update
+      description: |-
+        ModelViewSet guarded by :class:`RolePermission`.
+
+        Subclasses set ``required_roles`` / ``write_roles`` (tuples of RoleCode).
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: A unique integer value identifying this employee pay element.
+        required: true
+      tags:
+      - v1
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/EmployeePayElement'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/EmployeePayElement'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/EmployeePayElement'
+        required: true
+      security:
+      - tokenAuth: []
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/EmployeePayElement'
+          description: ''
+    patch:
+      operationId: v1_employee_pay_elements_partial_update
+      description: |-
+        ModelViewSet guarded by :class:`RolePermission`.
+
+        Subclasses set ``required_roles`` / ``write_roles`` (tuples of RoleCode).
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: A unique integer value identifying this employee pay element.
+        required: true
+      tags:
+      - v1
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PatchedEmployeePayElement'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/PatchedEmployeePayElement'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/PatchedEmployeePayElement'
+      security:
+      - tokenAuth: []
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/EmployeePayElement'
+          description: ''
+    delete:
+      operationId: v1_employee_pay_elements_destroy
+      description: |-
+        ModelViewSet guarded by :class:`RolePermission`.
+
+        Subclasses set ``required_roles`` / ``write_roles`` (tuples of RoleCode).
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: A unique integer value identifying this employee pay element.
+        required: true
+      tags:
+      - v1
+      security:
+      - tokenAuth: []
+      - cookieAuth: []
+      responses:
+        '204':
+          description: No response body
   /api/v1/enrolments/:
     get:
       operationId: v1_enrolments_list
@@ -8458,6 +8660,10 @@ paths:
         description: |-
           * `monthly` - Monthly
           * `weekly` - Weekly
+      - in: query
+        name: position
+        schema:
+          type: integer
       - name: search
         required: false
         in: query
@@ -13721,6 +13927,12 @@ components:
         user:
           type: integer
           nullable: true
+        position:
+          type: integer
+          nullable: true
+        position_name:
+          type: string
+          readOnly: true
         pay_frequency:
           $ref: '#/components/schemas/PayFrequencyEnum'
         basic_salary:
@@ -13754,7 +13966,39 @@ components:
       required:
       - full_name
       - id
+      - position_name
       - staff_no
+    EmployeePayElement:
+      type: object
+      properties:
+        id:
+          type: integer
+          readOnly: true
+        employee:
+          type: integer
+        employee_name:
+          type: string
+          readOnly: true
+        element:
+          type: integer
+        element_code:
+          type: string
+          readOnly: true
+        element_name:
+          type: string
+          readOnly: true
+        amount:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,12}(?:\.\d{0,2})?$
+      required:
+      - amount
+      - element
+      - element_code
+      - element_name
+      - employee
+      - employee_name
+      - id
     Enrolment:
       type: object
       properties:
@@ -15201,6 +15445,29 @@ components:
           type: array
           items:
             $ref: '#/components/schemas/Employee'
+    PaginatedEmployeePayElementList:
+      type: object
+      required:
+      - count
+      - results
+      properties:
+        count:
+          type: integer
+          example: 123
+        next:
+          type: string
+          nullable: true
+          format: uri
+          example: http://api.example.org/accounts/?page=4
+        previous:
+          type: string
+          nullable: true
+          format: uri
+          example: http://api.example.org/accounts/?page=2
+        results:
+          type: array
+          items:
+            $ref: '#/components/schemas/EmployeePayElement'
     PaginatedEnrolmentList:
       type: object
       required:
@@ -16442,6 +16709,12 @@ components:
         user:
           type: integer
           nullable: true
+        position:
+          type: integer
+          nullable: true
+        position_name:
+          type: string
+          readOnly: true
         pay_frequency:
           $ref: '#/components/schemas/PayFrequencyEnum'
         basic_salary:
@@ -16472,6 +16745,29 @@ components:
           maxLength: 64
         active:
           type: boolean
+    PatchedEmployeePayElement:
+      type: object
+      properties:
+        id:
+          type: integer
+          readOnly: true
+        employee:
+          type: integer
+        employee_name:
+          type: string
+          readOnly: true
+        element:
+          type: integer
+        element_code:
+          type: string
+          readOnly: true
+        element_name:
+          type: string
+          readOnly: true
+        amount:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,12}(?:\.\d{0,2})?$
     PatchedEnrolment:
       type: object
       properties:
@@ -17138,7 +17434,6 @@ components:
           type: array
           items:
             type: integer
-          readOnly: true
         sql_view:
           type: string
           maxLength: 128
@@ -18043,7 +18338,6 @@ components:
           type: array
           items:
             type: integer
-          readOnly: true
         sql_view:
           type: string
           maxLength: 128
@@ -18051,7 +18345,6 @@ components:
       - code
       - id
       - name
-      - roles
     ReportRun:
       type: object
       properties:

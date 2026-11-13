@@ -25,16 +25,32 @@ MANAGE = (
     RoleCode.DUE_DILIGENCE,
     RoleCode.PRINTER,
 )
+HR_ROLES = (RoleCode.HR_MANAGER, RoleCode.HR_OFFICER)
+READ = MANAGE + HR_ROLES
+
+
+def _hr_only(user) -> bool:
+    if not getattr(user, "is_authenticated", False):
+        return False
+    if getattr(user, "is_superuser", False):
+        return False
+    role_ids = set(user.roles.values_list("id", flat=True))
+    return bool(role_ids & set(HR_ROLES)) and not (role_ids & set(MANAGE))
 
 
 class LearnerViewSet(RoleScopedModelViewSet):
     queryset = Learner.objects.all().prefetch_related("contacts", "documents").order_by("surname")
     serializer_class = s.LearnerSerializer
-    required_roles = MANAGE
+    required_roles = READ
     write_roles = MANAGE
     filterset_fields = ["active", "company", "nationality", "state"]
     search_fields = ["badge_no", "surname", "first_name"]
     ordering_fields = ["surname", "badge_no", "created_at"]
+
+    def get_serializer_class(self):
+        if _hr_only(self.request.user):
+            return s.LearnerLinkSerializer
+        return s.LearnerSerializer
 
 
 class LearnerContactViewSet(RoleScopedModelViewSet):

@@ -10,7 +10,9 @@ export type RoleCode =
   | "printer"
   | "instructor"
   | "reports"
-  | "verification";
+  | "verification"
+  | "hr_manager"
+  | "hr_officer";
 
 export interface StaffUser {
   id: number;
@@ -784,4 +786,270 @@ export interface BackupTestResult {
   message: string;
   free_bytes: number;
   checked_at: string;
+}
+
+export interface Employee {
+  id: number;
+  staff_no: string;
+  full_name: string;
+  learner: number | null;
+  user: number | null;
+  position: number | null;
+  position_name?: string;
+  pay_frequency: "monthly" | "weekly";
+  basic_salary?: string;
+  hourly_rate?: string;
+  bank_name?: string;
+  bank_code?: string;
+  account_name?: string;
+  bank_account?: string;
+  tax_id: string;
+  pension_id: string;
+  active: boolean;
+}
+
+export interface EmployeePayElement {
+  id: number;
+  employee: number;
+  employee_name: string;
+  element: number;
+  element_code: string;
+  element_name: string;
+  amount: string;
+}
+
+export interface PayElement {
+  id: number;
+  code: string;
+  name: string;
+  kind: "earning" | "deduction" | "employer";
+  taxable: boolean;
+  pensionable: boolean;
+  formula: string;
+  active: boolean;
+}
+
+export type AccountType = "asset" | "liability" | "equity" | "income" | "expense";
+
+export interface Account {
+  id: number;
+  code: string;
+  name: string;
+  type: AccountType;
+  parent: number | null;
+  active: boolean;
+}
+
+export interface JournalLine {
+  id: number;
+  account: number;
+  account_code: string;
+  debit: string;
+  credit: string;
+  dimension: string;
+  memo: string;
+}
+
+export interface Journal {
+  id: number;
+  journal_no: string;
+  date: string;
+  memo: string;
+  source: string;
+  status: "draft" | "posted" | "void";
+  prepared_by: number | null;
+  approved_by: number | null;
+  approved_at: string | null;
+  posted_at: string | null;
+  posted_by: number | null;
+  void_reason: string;
+  total_debit: string;
+  total_credit: string;
+  lines: JournalLine[];
+}
+
+export interface TrialBalanceRow {
+  code: string;
+  name: string;
+  type: AccountType;
+  debit: string;
+  credit: string;
+  balance: string;
+}
+
+export interface PayRun {
+  id: number;
+  period: string;
+  run_date: string;
+  status: "draft" | "approved" | "posted" | "paid" | "void";
+  total_gross: string;
+  total_tax: string;
+  total_pension_employee: string;
+  total_pension_employer: string;
+  total_deductions: string;
+  total_net: string;
+  prepared_by: number | null;
+  approved_by: number | null;
+  approved_at: string | null;
+  posted_at: string | null;
+  journal: number | null;
+  payslip_count: number;
+}
+
+export interface PayslipLine {
+  id: number;
+  element: number | null;
+  description: string;
+  kind: "earning" | "deduction" | "employer";
+  quantity: string;
+  rate: string;
+  amount: string;
+}
+
+export interface Payslip {
+  id: number;
+  pay_run: number;
+  employee: number;
+  staff_no: string;
+  employee_name: string;
+  gross: string;
+  tax: string;
+  pension: string;
+  pension_employer: string;
+  other_deductions: string;
+  deductions: string;
+  net: string;
+  worked_hours: string;
+  lines: PayslipLine[];
+}
+
+export interface TimeEntry {
+  id: number;
+  timesheet: number;
+  work_date: string;
+  hours: string;
+  rate?: string;
+  kind: "regular" | "ot150" | "ot200";
+  is_holiday: boolean;
+  project: string;
+  job_no: string;
+}
+
+export interface Timesheet {
+  id: number;
+  employee: number;
+  staff_no: string;
+  period_start: string;
+  period_end: string;
+  status: "draft" | "submitted" | "approved" | "rejected";
+  total_hours: string;
+  worked_days: string;
+  approved_by: number | null;
+  approved_at: string | null;
+  entries: TimeEntry[];
+}
+
+export interface Provision {
+  id: number;
+  employee: number;
+  timesheet: number | null;
+  kind: string;
+  days: string;
+  rate: string;
+  amount: string;
+  as_of: string;
+}
+
+export interface TaxBand {
+  id: number;
+  name: string;
+  lower: string;
+  upper: string | null;
+  rate_pct: string;
+  effective_from: string;
+  active: boolean;
+}
+
+export interface PaymentFile {
+  id: number;
+  pay_run: number;
+  filename: string;
+  status: string;
+  generated_at: string | null;
+  generated_by: number | null;
+  content: string;
+}
+
+export interface NotificationRecord {
+  id: number;
+  template_code: string;
+  recipient: string;
+  channel: string;
+  payload: Record<string, unknown>;
+  status: string;
+  sent_at: string | null;
+  error: string;
+}
+
+export interface NotificationTemplate {
+  id: number;
+  code: string;
+  channel: string;
+  subject: string;
+  body: string;
+}
+
+export interface AuditEvent {
+  id: number;
+  actor: number | null;
+  action: string;
+  entity: string;
+  entity_id: number | null;
+  before: Record<string, unknown> | null;
+  after: Record<string, unknown> | null;
+  ip: string | null;
+  at: string;
+}
+
+export interface OutboxEvent {
+  id: number;
+  topic: string;
+  payload: Record<string, unknown>;
+  status: string;
+  attempts: number;
+  created_at: string;
+  processed_at: string | null;
+  error: string;
+}
+
+export interface WebhookDelivery {
+  id: number;
+  event: number;
+  url: string;
+  status: string;
+  attempts: number;
+  last_error: string;
+}
+
+export interface ExternalRef {
+  id: number;
+  system: string;
+  entity: string;
+  entity_id: number;
+  external_id: string;
+}
+
+export interface SeedMarker {
+  id: number;
+  tier: string;
+  code: string;
+  applied_at: string;
+}
+
+export interface CertificateSequence {
+  id: number;
+  course_year: number;
+  item_id: number;
+  last_number: number;
+  updated_at: string;
 }

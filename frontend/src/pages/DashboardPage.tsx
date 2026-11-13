@@ -14,7 +14,7 @@ import { ArrowUpRight, RefreshCw } from "lucide-react";
 import { request } from "../api/client";
 import type { Dashboard } from "../api/types";
 import { useAuth } from "../auth/context";
-import { REPORTING_ROLES, can, displayName } from "../auth/roles";
+import { REPORTING_ROLES, can, displayName, isHrOnly } from "../auth/roles";
 import {
   Button,
   Card,
@@ -43,33 +43,45 @@ function HomeTiles() {
   })).filter((group) => group.items.length);
 
   return (
-    <div className="axis-home">
-      {groups.map((group) => (
-        <section className="axis-home-group" key={group.label}>
-          <div className="axis-home-group-head">
-            <h2>{group.label}</h2>
-            <span>{group.items.length} workspaces</span>
-          </div>
-          <div className="axis-home-grid">
-            {group.items.map((item) => {
-              const Icon = item.icon;
-              return (
-                <Link className="axis-tile" to={item.to} key={item.to}>
-                  <span className="axis-tile-icon">
-                    <Icon size={19} aria-hidden="true" />
-                  </span>
-                  <span className="axis-tile-copy">
-                    <strong>{item.title}</strong>
-                    <small>{item.description}</small>
-                  </span>
-                  <ArrowUpRight size={16} aria-hidden="true" />
-                </Link>
-              );
-            })}
-          </div>
-        </section>
-      ))}
-    </div>
+    <section className="workspace-directory" aria-labelledby="workspace-directory-title">
+      <header className="workspace-directory-head">
+        <div>
+          <p className="page-eyebrow">Operations map</p>
+          <h2 id="workspace-directory-title">Workspace directory</h2>
+        </div>
+        <p>
+          Every module available to your role, grouped by the work it supports. Choose a
+          workspace to continue.
+        </p>
+      </header>
+      <div className="axis-home">
+        {groups.map((group) => (
+          <section className="axis-home-group" key={group.label}>
+            <div className="axis-home-group-head">
+              <h2>{group.label}</h2>
+              <span>{group.items.length} workspaces</span>
+            </div>
+            <div className="axis-home-grid">
+              {group.items.map((item) => {
+                const Icon = item.icon;
+                return (
+                  <Link className="axis-tile" to={item.to} key={item.to}>
+                    <span className="axis-tile-icon">
+                      <Icon size={19} aria-hidden="true" />
+                    </span>
+                    <span className="axis-tile-copy">
+                      <strong>{item.title}</strong>
+                      <small>{item.description}</small>
+                    </span>
+                    <ArrowUpRight size={16} aria-hidden="true" />
+                  </Link>
+                );
+              })}
+            </div>
+          </section>
+        ))}
+      </div>
+    </section>
   );
 }
 
@@ -85,7 +97,7 @@ export function DashboardPage() {
     <PageHeader
       eyebrow="Home"
       title={`Welcome, ${displayName(user).split(" ")[0] || "colleague"}`}
-      description="Choose a workspace to manage training records, learners, reference data and the rest of the centre."
+      description="Monitor the centre's operational pulse, then move directly into the workspace that needs attention."
       actions={
         <>
           <Button onClick={() => void dashboard.refetch()}>
@@ -101,8 +113,8 @@ export function DashboardPage() {
     return (
       <>
         {header}
-        <HomeTiles />
         <Loading rows={6} />
+        <HomeTiles />
       </>
     );
   }
@@ -110,26 +122,26 @@ export function DashboardPage() {
     return (
       <>
         {header}
-        <HomeTiles />
         <ErrorState
           message={errorMessage(dashboard.error)}
           retry={() => void dashboard.refetch()}
         />
+        <HomeTiles />
       </>
     );
   }
 
   const data = dashboard.data;
+  const financeVisible = !isHrOnly(user);
   const trend = data.trend.map((row) => ({ ...row, label: monthLabel(row.month) }));
   const queueTotal =
     data.work_queue.pending_enrolments.length +
-    data.work_queue.unpaid_invoices.length +
+    (financeVisible ? data.work_queue.unpaid_invoices.length : 0) +
     data.work_queue.certificates_awaiting_release.length;
 
   return (
     <>
       {header}
-      <HomeTiles />
 
       <div className="kpi-grid">
         <Stat
@@ -166,16 +178,18 @@ export function DashboardPage() {
           <span>Expiring in 90 days</span>
           <strong>{count(data.kpis.certificates_expiring_90d)}</strong>
         </div>
-        <div className="mini-stat">
-          <span>Outstanding value</span>
-          <strong>{money(data.kpis.invoices_outstanding_total)}</strong>
-        </div>
+        {financeVisible ? (
+          <div className="mini-stat">
+            <span>Outstanding value</span>
+            <strong>{money(data.kpis.invoices_outstanding_total)}</strong>
+          </div>
+        ) : null}
         <div className="mini-stat">
           <span>Medicals expiring · 30d</span>
           <strong>{count(data.kpis.medicals_expiring_30d)}</strong>
         </div>
         <div className="mini-stat">
-          <span>All records records</span>
+          <span>Open training records</span>
           <strong>{count(data.kpis.workflow_open)}</strong>
         </div>
       </div>
@@ -350,21 +364,25 @@ export function DashboardPage() {
               <p className="queue-empty">Nothing waiting.</p>
             ) : null}
 
-            <div className="queue-head">
-              <span>Invoices outstanding</span>
-              <Link to="/billing?tab=invoices">View billing</Link>
-            </div>
-            {data.work_queue.unpaid_invoices.slice(0, 3).map((row) => (
-              <Link to={`/billing?tab=invoices&q=${row.invoice_no}`} key={row.id} className="queue-row">
-                <span>
-                  <strong className="mono">{row.invoice_no}</strong>
-                  <small>Due {formatDate(row.due_date)}</small>
-                </span>
-                <span className="queue-amount">{money(row.balance, row.currency)}</span>
-              </Link>
-            ))}
-            {!data.work_queue.unpaid_invoices.length ? (
-              <p className="queue-empty">Nothing outstanding.</p>
+            {financeVisible ? (
+              <>
+                <div className="queue-head">
+                  <span>Invoices outstanding</span>
+                  <Link to="/billing?tab=invoices">View billing</Link>
+                </div>
+                {data.work_queue.unpaid_invoices.slice(0, 3).map((row) => (
+                  <Link to={`/billing?tab=invoices&q=${row.invoice_no}`} key={row.id} className="queue-row">
+                    <span>
+                      <strong className="mono">{row.invoice_no}</strong>
+                      <small>Due {formatDate(row.due_date)}</small>
+                    </span>
+                    <span className="queue-amount">{money(row.balance, row.currency)}</span>
+                  </Link>
+                ))}
+                {!data.work_queue.unpaid_invoices.length ? (
+                  <p className="queue-empty">Nothing outstanding.</p>
+                ) : null}
+              </>
             ) : null}
 
             <div className="queue-head">
@@ -388,6 +406,8 @@ export function DashboardPage() {
           </div>
         </Card>
       </div>
+
+      <HomeTiles />
     </>
   );
 }

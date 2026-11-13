@@ -15,7 +15,6 @@ from apps.billing.serializers import (
     PaymentSerializer,
 )
 from apps.common.enums import RoleCode
-from apps.common.permissions import ANY_ROLE
 from apps.common.views import RoleScopedModelViewSet
 
 READ = (
@@ -24,6 +23,9 @@ READ = (
     RoleCode.ACCOUNTS,
 )
 WRITE = (RoleCode.SYSTEM_ADMIN, RoleCode.ADMIN, RoleCode.ACCOUNTS)
+STAFF_READ = tuple(
+    role for role in RoleCode if role not in (RoleCode.HR_MANAGER, RoleCode.HR_OFFICER)
+)
 
 
 class CorporateAccountViewSet(RoleScopedModelViewSet):
@@ -33,7 +35,7 @@ class CorporateAccountViewSet(RoleScopedModelViewSet):
         .order_by("name")
     )
     serializer_class = CorporateAccountReadSerializer
-    required_roles = ANY_ROLE
+    required_roles = STAFF_READ
     write_roles = WRITE
     search_fields = ["name", "company__name", "lead_email"]
 

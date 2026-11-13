@@ -13,6 +13,8 @@ export const ROLE_LABELS: Record<RoleCode, string> = {
   instructor: "Instructor",
   reports: "Reports",
   verification: "Verification",
+  hr_manager: "HR manager",
+  hr_officer: "HR officer",
 };
 
 export const ROLE_IDS: Record<RoleCode, number> = {
@@ -28,6 +30,8 @@ export const ROLE_IDS: Record<RoleCode, number> = {
   instructor: 10,
   reports: 11,
   verification: 12,
+  hr_manager: 13,
+  hr_officer: 14,
 };
 
 export const ALL_ROLES = Object.keys(ROLE_LABELS) as RoleCode[];
@@ -53,6 +57,23 @@ export const REPORTING_ROLES: RoleCode[] = ["system_admin", "md", "reports"];
 export const MEDICAL_ROLES: RoleCode[] = ["system_admin", "admin", "front_desk", "medic"];
 export const MEDICAL_WRITE: RoleCode[] = ["system_admin", "admin", "medic"];
 export const USER_ADMIN_ROLES: RoleCode[] = ["system_admin"];
+export const HR_ROLES: RoleCode[] = ["system_admin", "hr_manager", "hr_officer"];
+export const HR_MANAGER_ROLES: RoleCode[] = ["system_admin", "hr_manager"];
+export const FINANCE_ROLES: RoleCode[] = [
+  "system_admin",
+  "admin",
+  "accounts",
+  "md",
+  "reports",
+];
+export const ADMIN_TOOLS_ROLES: RoleCode[] = ["system_admin"];
+
+export function isHrOnly(user: StaffUser | null | undefined): boolean {
+  if (!user || user.role_codes.includes("system_admin")) return false;
+  return (
+    user.role_codes.includes("hr_manager") || user.role_codes.includes("hr_officer")
+  ) && !user.role_codes.some((role) => FINANCE_ROLES.includes(role));
+}
 
 export function can(user: StaffUser | null | undefined, roles: RoleCode[]): boolean {
   if (!user) return false;

@@ -5,12 +5,12 @@ from django.db.models.functions import Lower
 
 
 class Role(models.Model):
-    """Role — mirrors the 12 AXIS roles.
+    """Role — mirrors the AXIS roles plus HR extensions.
 
     Design ``02-database.md`` M1, ``03-business-logic.md`` §10.
 
-    The primary key IS the legacy role code (1..12) so seeded data keeps AXIS
-    semantics (see ``RoleCode`` in ``apps.common.enums``).
+    The primary key IS the legacy role code; codes 13 and 14 extend the original
+    AXIS set with HR Manager and HR Officer (see ``RoleCode``).
     """
 
     id = models.SmallAutoField(primary_key=True)

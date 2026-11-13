@@ -1,10 +1,13 @@
 from rest_framework import serializers
 
+from apps.accounts.models import Role
 from apps.reporting.models import ReportDef, ReportRun
 
 
 class ReportDefSerializer(serializers.ModelSerializer):
-    roles = serializers.PrimaryKeyRelatedField(many=True, read_only=True)
+    roles = serializers.PrimaryKeyRelatedField(
+        many=True, queryset=Role.objects.all(), required=False
+    )
 
     class Meta:
         model = ReportDef

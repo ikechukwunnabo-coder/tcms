@@ -30,7 +30,7 @@ TERMINAL = {WorkflowStatusCode.COMPLETED, WorkflowStatusCode.CANCELLED}
 
 
 class Command(BaseCommand):
-    help = "SEED_ROLES: seed roles (12), workflow statuses (14) and the System-Admin user."
+    help = "SEED_ROLES: seed roles (14), workflow statuses (14) and the System-Admin user."
 
     def add_arguments(self, parser):
         parser.add_argument("--admin-user", default=os.environ.get("SEED_ADMIN_USER", "admin"))

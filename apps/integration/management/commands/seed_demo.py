@@ -83,6 +83,8 @@ DEMO_ROLES = [
     RoleCode.VERIFICATION,
     RoleCode.INSTRUCTOR,
     RoleCode.REPORTS,
+    RoleCode.HR_MANAGER,
+    RoleCode.HR_OFFICER,
 ]
 
 # one record per state, plus a few extra in-flight/completed for volume

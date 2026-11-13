@@ -56,6 +56,33 @@ DB_PORT=5432
 Then `python manage.py migrate`. Tests create and destroy a `test_tcms`
 database automatically.
 
+## Staff workspaces
+
+The console navigation is driven by `frontend/src/navigation/axis.ts` and is
+filtered by role:
+
+| Workspace | Route | Purpose |
+| --- | --- | --- |
+| Tasks and dashboard | `/` | Role-scoped work queue, KPIs and workflow tasks |
+| Operations | `/scheduling`, `/certificates`, `/opito-files`, `/medicals` | Sessions, venues, instructors, certification and medicals |
+| People | `/learners`, `/hr` | Learner records and HR employees, positions, timesheets, pay setup |
+| Finance | `/finance`, `/billing` | GL, journals, payroll, payment files and receivables |
+| Course Setup | `/courses`, `/modules`, `/items` | Catalogue and training-item configuration |
+| Reference Data | `/reference` | Companies, nationalities, states, positions and titles |
+| Access | `/users`, `/roles`, `/report-access` | Staff accounts, role assignment and report visibility |
+| Administration | `/notifications`, `/documents`, `/audit`, `/workflow-admin`, `/integration` | Notifications, registry, audit, workflow admin and integration monitoring |
+
+`HR Officer` can manage people and submit timesheets but cannot see salaries,
+bank details, payslips, pay elements, provisions, tax bands or payment files.
+`HR Manager` can manage sensitive pay setup, read payslips and approve
+timesheets, but cannot run payroll or view corporate finances. Neither HR role
+can see receivables.
+
+`python manage.py seed_demo` creates demo users for the operational staff roles,
+including `demo_hr_manager` and `demo_hr_officer`. The generated password is printed once
+by the command (or set `DEMO_PASSWORD` first). Never run `seed_demo` in
+production.
+
 ## Common commands
 
 | Task | Command |

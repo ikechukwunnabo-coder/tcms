@@ -1,22 +1,45 @@
 import {
+  Award,
+  Bell,
   BookOpen,
   Building2,
+  CalendarDays,
   ChartNoAxesCombined,
   ClipboardCheck,
+  ClipboardList,
   Database,
   FileSpreadsheet,
   FileText,
+  Files,
+  GitBranch,
   Globe2,
   History,
+  Landmark,
   ListChecks,
+  LockKeyhole,
   MapPin,
+  PlugZap,
+  ReceiptText,
+  ScrollText,
   ShieldCheck,
+  Stethoscope,
   UserCog,
   Users,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import type { RoleCode } from "../api/types";
-import { LEARNER_ROLES, REPORTING_ROLES, USER_ADMIN_ROLES } from "../auth/roles";
+import {
+  ADMIN_TOOLS_ROLES,
+  BILLING_ROLES,
+  CERTIFICATE_READ,
+  FINANCE_ROLES,
+  HR_MANAGER_ROLES,
+  HR_ROLES,
+  LEARNER_ROLES,
+  MEDICAL_ROLES,
+  REPORTING_ROLES,
+  USER_ADMIN_ROLES,
+} from "../auth/roles";
 
 export interface AxisNavItem {
   title: string;
@@ -47,6 +70,23 @@ const TASK_ROLES: RoleCode[] = [
 
 const OPITO_ROLES: RoleCode[] = ["system_admin", "printer"];
 
+const CENTRE_ROLES: RoleCode[] = [
+  "system_admin",
+  "admin",
+  "front_desk",
+  "medic",
+  "training_coordinator",
+  "accounts",
+  "due_diligence",
+  "md",
+  "printer",
+  "instructor",
+  "reports",
+  "verification",
+  "hr_manager",
+  "hr_officer",
+];
+
 export const AXIS_GROUPS: AxisNavGroup[] = [
   {
     label: "Tasks",
@@ -54,7 +94,7 @@ export const AXIS_GROUPS: AxisNavGroup[] = [
       {
         title: "My Pending Tasks",
         description:
-          "Act on the pending tasks related to your Role by approving, rejecting or updating training data.",
+          "Act on the pending tasks related to your role by approving, rejecting or updating training data.",
         to: "/tasks",
         icon: ClipboardCheck,
         roles: TASK_ROLES,
@@ -93,6 +133,67 @@ export const AXIS_GROUPS: AxisNavGroup[] = [
         to: "/training-records",
         icon: ListChecks,
         roles: LEARNER_ROLES,
+      },
+    ],
+  },
+  {
+    label: "People",
+    items: [
+      {
+        title: "HR Workspace",
+        description:
+          "Employees, positions, pay setup, time and attendance, and workforce provisions.",
+        to: "/hr",
+        icon: Users,
+        roles: HR_ROLES,
+      },
+      {
+        title: "Scheduling",
+        description: "Plan course sessions, venues and instructor allocation.",
+        to: "/scheduling",
+        icon: CalendarDays,
+        roles: CENTRE_ROLES,
+      },
+      {
+        title: "Enrolments",
+        description: "Book learners, verify payments and allocate session seats.",
+        to: "/enrolments",
+        icon: ClipboardList,
+        roles: CENTRE_ROLES,
+      },
+      {
+        title: "Certificates",
+        description: "Issue, approve, print and release certificates and ID cards.",
+        to: "/certificates",
+        icon: Award,
+        roles: CERTIFICATE_READ,
+      },
+      {
+        title: "Medicals",
+        description: "Record and review medical fitness for training and certification.",
+        to: "/medicals",
+        icon: Stethoscope,
+        roles: MEDICAL_ROLES,
+      },
+    ],
+  },
+  {
+    label: "Finance",
+    items: [
+      {
+        title: "Finance Workspace",
+        description:
+          "Chart of accounts, journals, pay runs, payslips, payment files and tax policy.",
+        to: "/finance",
+        icon: Landmark,
+        roles: FINANCE_ROLES,
+      },
+      {
+        title: "Billing",
+        description: "Corporate accounts, invoices and outstanding balances.",
+        to: "/billing",
+        icon: ReceiptText,
+        roles: BILLING_ROLES,
       },
     ],
   },
@@ -168,8 +269,50 @@ export const AXIS_GROUPS: AxisNavGroup[] = [
     ],
   },
   {
-    label: "Admin Tools",
+    label: "Administration",
     items: [
+      {
+        title: "Notifications",
+        description: "Review delivery history and maintain message templates.",
+        to: "/notifications",
+        icon: Bell,
+        roles: ADMIN_TOOLS_ROLES,
+      },
+      {
+        title: "Documents",
+        description: "Search stored documents and upload supporting files.",
+        to: "/documents",
+        icon: Files,
+        roles: ADMIN_TOOLS_ROLES,
+      },
+      {
+        title: "Audit Trail",
+        description: "Inspect the append-only record of system activity.",
+        to: "/audit",
+        icon: ScrollText,
+        roles: ADMIN_TOOLS_ROLES,
+      },
+      {
+        title: "Workflow Admin",
+        description: "Maintain workflow statuses and inspect approval history.",
+        to: "/workflow-admin",
+        icon: GitBranch,
+        roles: ADMIN_TOOLS_ROLES,
+      },
+      {
+        title: "Integration",
+        description: "Monitor outbox events, webhooks and external references.",
+        to: "/integration",
+        icon: PlugZap,
+        roles: ADMIN_TOOLS_ROLES,
+      },
+      {
+        title: "Report Access",
+        description: "Control which roles may run each reporting dataset.",
+        to: "/report-access",
+        icon: LockKeyhole,
+        roles: ADMIN_TOOLS_ROLES,
+      },
       {
         title: "Reporting",
         description: "See training statistics",
@@ -187,3 +330,5 @@ export const AXIS_GROUPS: AxisNavGroup[] = [
     ],
   },
 ];
+
+export const HR_PAY_ROLES = HR_MANAGER_ROLES;

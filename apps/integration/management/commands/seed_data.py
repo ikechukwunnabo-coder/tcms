@@ -35,7 +35,8 @@ POSITIONS = [
     ("POS001", "Rigger"), ("POS002", "Electrician"), ("POS003", "Welder"),
     ("POS004", "Crane Operator"), ("POS005", "Deckhand"), ("POS006", "Engineer"),
     ("POS007", "Supervisor"), ("POS008", "Safety Officer"), ("POS009", "Diver"),
-    ("POS010", "Technician"),
+    ("POS010", "Technician"), ("POS011", "HR Manager"),
+    ("POS012", "HR Officer / Generalist"),
 ]
 
 TITLES = ["Mr", "Mrs", "Ms", "Miss", "Dr", "Engr", "Capt", "Chief"]

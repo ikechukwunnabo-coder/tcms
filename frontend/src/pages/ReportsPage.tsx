@@ -262,7 +262,7 @@ export function ReportsPage() {
 
       <Card
         title="Operational exports"
-        aside={<span className="card-note">CSV A� live data</span>}
+        aside={<span className="card-note">CSV · live data</span>}
       >
         <div className="export-grid">
           {available.map((dataset) => {

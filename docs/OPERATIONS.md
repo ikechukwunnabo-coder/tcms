@@ -52,6 +52,26 @@ pension rates and missing GL accounts. Finance must confirm the rates and codes;
 the application validates that they are internally consistent, not that they are
 the legally correct values.
 
+## HR access review
+
+Two roles carry people operations, and both must be reviewed together with the
+user's other roles:
+
+- `hr_officer` — employee and position maintenance, timesheet preparation and
+  submission. The API omits salary, hourly rate and bank fields, rejects writes
+  to them, and returns `403` for payslips, pay elements, employee pay elements,
+  provisions, tax bands, payment files and pay runs.
+- `hr_manager` — everything an HR Officer can do, plus sensitive pay setup,
+  employee pay elements, provisions, payslip reads and timesheet approval. HR
+  Managers cannot run payroll, read payment files/tax bands/pay elements or see
+  accounts/corporate-account balances.
+
+Neither role may read corporate accounts or receivables, and both are excluded
+from revenue KPIs and unpaid-invoice queues. If a user also holds a finance or
+admin role, the broader role wins; verify this deliberately during access
+reviews. Run `python manage.py test apps.integration.tests.DemoRoleSmokeTests`
+to exercise the seeded end-to-end role matrix.
+
 ## Billing/VAT
 
 Invoice tax is read from `BILLING_TAX_PCT` at creation time. Set the confirmed

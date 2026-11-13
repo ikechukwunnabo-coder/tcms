@@ -182,6 +182,49 @@ export const ROLE_MANUALS: Record<RoleCode, RoleManual> = {
     ],
     escalation: "Escalate unauthorised document requests, stock discrepancies or quality failures to the administrator.",
   },
+  hr_manager: {
+    file: "13-hr-manager.html",
+    role: "hr_manager",
+    title: "HR Manager",
+    summary:
+      "Own employee records, pay setup, time approval and workforce reporting while protecting sensitive payroll data.",
+    duties: [
+      "Create and maintain employee records, positions and employment status.",
+      "Maintain bank details, salaries, allowances and deductions within your authority.",
+      "Review and approve submitted timesheets, then resolve rejected time entries.",
+      "Prepare leave and provision records and read payslips for employee queries.",
+      "Coordinate HR changes with finance before they affect a live pay run.",
+    ],
+    controls: [
+      "Change pay and bank details only with documented employee authorisation.",
+      "Never share salaries, bank details or payslips with staff outside an authorised HR or finance role.",
+      "Do not approve your own timesheet or a timesheet you prepared.",
+      "Keep the reason for every pay or bank-detail correction in the audit trail.",
+    ],
+    escalation:
+      "Escalate disputed pay, suspected fraud, data-protection incidents or pay runs requiring correction to the administrator and finance lead.",
+  },
+  hr_officer: {
+    file: "14-hr-officer.html",
+    role: "hr_officer",
+    title: "HR Officer",
+    summary:
+      "Maintain non-sensitive employee records and timekeeping while respecting payroll confidentiality.",
+    duties: [
+      "Create and update employee contact and employment details within the approved fields.",
+      "Maintain positions and link employees to the correct learner and user records.",
+      "Record and submit timesheets for approval, correcting rejected entries promptly.",
+      "Refer salary, bank, payslip and provision questions to the HR manager.",
+    ],
+    controls: [
+      "Never ask colleagues to reveal salary, bank details, payslips or tax records.",
+      "Do not attempt to approve timesheets or alter rates.",
+      "Record only information required for HR administration and keep it accurate.",
+      "Report accidental exposure of payroll information immediately.",
+    ],
+    escalation:
+      "Escalate payroll questions, data-protection concerns and timesheet disputes to the HR manager.",
+  },
   instructor: {
     file: "11-instructor.html",
     role: "instructor",

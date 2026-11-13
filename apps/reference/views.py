@@ -36,7 +36,7 @@ class PositionViewSet(RoleScopedModelViewSet):
     queryset = Position.objects.all().order_by("name")
     serializer_class = s.PositionSerializer
     required_roles = ANY_ROLE
-    write_roles = WRITE
+    write_roles = WRITE + (RoleCode.HR_MANAGER, RoleCode.HR_OFFICER)
     search_fields = ["posicode", "name"]
 
 

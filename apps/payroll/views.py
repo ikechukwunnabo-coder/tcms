@@ -7,7 +7,7 @@ from django.db.models import Count
 from django.http import HttpResponse
 from rest_framework import status
 from rest_framework.decorators import action
-from rest_framework.exceptions import ValidationError
+from rest_framework.exceptions import PermissionDenied, ValidationError
 from rest_framework.response import Response
 
 from apps.common.enums import RoleCode
@@ -16,6 +16,7 @@ from apps.payroll import services
 from apps.payroll.models import (
     Account,
     Employee,
+    EmployeePayElement,
     Journal,
     PayElement,
     PaymentFile,
@@ -28,6 +29,8 @@ from apps.payroll.models import (
 )
 from apps.payroll.serializers import (
     AccountSerializer,
+    EmployeeOfficerSerializer,
+    EmployeePayElementSerializer,
     EmployeeSerializer,
     JournalCreateSerializer,
     JournalSerializer,
@@ -39,11 +42,14 @@ from apps.payroll.serializers import (
     ProvisionCreateSerializer,
     ProvisionSerializer,
     TaxBandSerializer,
+    TimeEntryOfficerSerializer,
     TimeEntrySerializer,
     TimesheetCreateSerializer,
+    TimesheetOfficerSerializer,
     TimesheetSerializer,
 )
 
+HR_ROLES = (RoleCode.HR_MANAGER, RoleCode.HR_OFFICER)
 READ = (
     RoleCode.SYSTEM_ADMIN,
     RoleCode.ADMIN,
@@ -58,6 +64,31 @@ WRITE = (
     RoleCode.MD,
 )
 APPROVE = (RoleCode.SYSTEM_ADMIN, RoleCode.ADMIN, RoleCode.MD)
+MANAGER_READ = READ + (RoleCode.HR_MANAGER,)
+EMPLOYEE_READ = READ + HR_ROLES
+EMPLOYEE_WRITE = WRITE + HR_ROLES
+TIMESHEET_READ = READ + HR_ROLES
+TIMESHEET_WRITE = WRITE + HR_ROLES
+TIMESHEET_APPROVE = APPROVE + (RoleCode.HR_MANAGER,)
+_PRIVILEGED = set(READ) | {RoleCode.HR_MANAGER}
+
+
+def _officer_only(user) -> bool:
+    if not getattr(user, "is_authenticated", False):
+        return False
+    if getattr(user, "is_superuser", False):
+        return False
+    role_ids = set(user.roles.values_list("id", flat=True))
+    return RoleCode.HR_OFFICER in role_ids and not (role_ids & _PRIVILEGED)
+
+
+def _require_timesheet_approver(user) -> None:
+    if not getattr(user, "is_authenticated", False):
+        raise PermissionDenied("Authentication required.")
+    if getattr(user, "is_superuser", False):
+        return
+    if not user.roles.filter(id__in=[int(r) for r in TIMESHEET_APPROVE]).exists():
+        raise PermissionDenied("Only finance leads and HR Managers may approve timesheets.")
 
 
 def _parse_date(value):
@@ -113,11 +144,28 @@ class JournalViewSet(RoleScopedModelViewSet):
 
 
 class EmployeeViewSet(RoleScopedModelViewSet):
-    queryset = Employee.objects.select_related("learner", "user").order_by("staff_no")
+    queryset = Employee.objects.select_related(
+        "learner", "user", "position"
+    ).order_by("staff_no")
     serializer_class = EmployeeSerializer
-    required_roles = READ
-    write_roles = WRITE
-    filterset_fields = ["active", "pay_frequency"]
+    required_roles = EMPLOYEE_READ
+    write_roles = EMPLOYEE_WRITE
+    filterset_fields = ["active", "pay_frequency", "position"]
+
+    def get_serializer_class(self):
+        if _officer_only(self.request.user):
+            return EmployeeOfficerSerializer
+        return EmployeeSerializer
+
+
+class EmployeePayElementViewSet(RoleScopedModelViewSet):
+    queryset = EmployeePayElement.objects.select_related(
+        "employee", "element"
+    ).order_by("employee__staff_no", "element__code")
+    serializer_class = EmployeePayElementSerializer
+    required_roles = MANAGER_READ
+    write_roles = WRITE + (RoleCode.HR_MANAGER,)
+    filterset_fields = ["employee", "element"]
 
 
 class PayElementViewSet(RoleScopedModelViewSet):
@@ -197,17 +245,22 @@ class PayslipViewSet(RoleScopedReadOnlyModelViewSet):
         "lines"
     )
     serializer_class = PayslipSerializer
-    required_roles = READ
-    write_roles = WRITE
+    required_roles = MANAGER_READ
+    write_roles = WRITE + (RoleCode.HR_MANAGER,)
     filterset_fields = ["pay_run", "employee"]
 
 
 class TimesheetViewSet(RoleScopedModelViewSet):
     queryset = Timesheet.objects.select_related("employee").prefetch_related("entries")
     serializer_class = TimesheetSerializer
-    required_roles = READ
-    write_roles = WRITE
+    required_roles = TIMESHEET_READ
+    write_roles = TIMESHEET_WRITE
     filterset_fields = ["status", "employee"]
+
+    def get_serializer_class(self):
+        if _officer_only(self.request.user):
+            return TimesheetOfficerSerializer
+        return TimesheetSerializer
 
     def create(self, request, *args, **kwargs):
         serializer = TimesheetCreateSerializer(
@@ -215,43 +268,49 @@ class TimesheetViewSet(RoleScopedModelViewSet):
         )
         serializer.is_valid(raise_exception=True)
         timesheet = serializer.save()
-        return Response(
-            TimesheetSerializer(timesheet).data, status=status.HTTP_201_CREATED
-        )
+        output = self.get_serializer_class()(timesheet)
+        return Response(output.data, status=status.HTTP_201_CREATED)
 
     @action(detail=True, methods=["post"])
     def submit(self, request, pk=None):
         timesheet = services.submit_timesheet(self.get_object(), actor=request.user)
-        return Response(TimesheetSerializer(timesheet).data)
+        return Response(self.get_serializer_class()(timesheet).data)
 
     @action(detail=True, methods=["post"])
     def approve(self, request, pk=None):
+        _require_timesheet_approver(request.user)
         timesheet = services.approve_timesheet(self.get_object(), actor=request.user)
-        return Response(TimesheetSerializer(timesheet).data)
+        return Response(self.get_serializer_class()(timesheet).data)
 
     @action(detail=True, methods=["post"])
     def reject(self, request, pk=None):
+        _require_timesheet_approver(request.user)
         timesheet = services.reject_timesheet(
             self.get_object(),
             actor=request.user,
             reason=request.data.get("reason", ""),
         )
-        return Response(TimesheetSerializer(timesheet).data)
+        return Response(self.get_serializer_class()(timesheet).data)
 
 
 class TimeEntryViewSet(RoleScopedModelViewSet):
     queryset = TimeEntry.objects.select_related("timesheet__employee")
     serializer_class = TimeEntrySerializer
-    required_roles = READ
-    write_roles = WRITE
+    required_roles = TIMESHEET_READ
+    write_roles = TIMESHEET_WRITE
     filterset_fields = ["timesheet", "kind"]
+
+    def get_serializer_class(self):
+        if _officer_only(self.request.user):
+            return TimeEntryOfficerSerializer
+        return TimeEntrySerializer
 
 
 class ProvisionViewSet(RoleScopedModelViewSet):
     queryset = Provision.objects.select_related("employee", "timesheet")
     serializer_class = ProvisionSerializer
-    required_roles = READ
-    write_roles = WRITE
+    required_roles = MANAGER_READ
+    write_roles = WRITE + (RoleCode.HR_MANAGER,)
     filterset_fields = ["employee", "kind"]
 
     def create(self, request, *args, **kwargs):

@@ -12,6 +12,7 @@ import {
   ChevronLeft,
   ChevronRight,
   Download,
+  Inbox,
   Loader2,
   Search,
   X,
@@ -213,6 +214,7 @@ export function Modal({
   wide?: boolean;
 }) {
   const panel = useRef<HTMLDivElement>(null);
+  const titleId = useId();
 
   useEffect(() => {
     if (!open) return;
@@ -223,7 +225,26 @@ export function Modal({
     node?.focus();
     document.body.classList.add("modal-open");
     const onKey = (event: KeyboardEvent) => {
-      if (event.key === "Escape") onClose();
+      if (event.key === "Escape") {
+        onClose();
+        return;
+      }
+      if (event.key !== "Tab") return;
+      const focusable = Array.from(
+        panel.current?.querySelectorAll<HTMLElement>(
+          'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])',
+        ) ?? [],
+      ).filter((element) => element.offsetParent !== null);
+      if (!focusable.length) return;
+      const first = focusable[0];
+      const last = focusable[focusable.length - 1];
+      if (event.shiftKey && (document.activeElement === first || !panel.current?.contains(document.activeElement))) {
+        event.preventDefault();
+        last.focus();
+      } else if (!event.shiftKey && document.activeElement === last) {
+        event.preventDefault();
+        first.focus();
+      }
     };
     window.addEventListener("keydown", onKey);
     return () => {
@@ -242,12 +263,12 @@ export function Modal({
         className={`modal ${wide ? "modal-wide" : ""}`}
         role="dialog"
         aria-modal="true"
-        aria-label={title}
+        aria-labelledby={titleId}
         onMouseDown={(event) => event.stopPropagation()}
       >
         <header className="modal-head">
           <div>
-            <h2>{title}</h2>
+            <h2 id={titleId}>{title}</h2>
             {description ? <p className="hint">{description}</p> : null}
           </div>
           <button type="button" className="icon-btn" onClick={onClose} aria-label="Close dialog">
@@ -312,7 +333,7 @@ export function EmptyState({
   return (
     <div className="empty">
       <div className="empty-mark" aria-hidden="true">
-        <AlertTriangle size={20} />
+        <Inbox size={20} />
       </div>
       <h3>{title}</h3>
       <p>{body}</p>

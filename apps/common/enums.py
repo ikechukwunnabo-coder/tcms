@@ -20,6 +20,8 @@ class RoleCode(models.IntegerChoices):
     INSTRUCTOR = 10, "Instructor"
     REPORTS = 11, "Reports"
     VERIFICATION = 12, "Verification"
+    HR_MANAGER = 13, "HR Manager"
+    HR_OFFICER = 14, "HR Officer"
 
 
 class WorkflowStatusCode(models.IntegerChoices):

@@ -111,19 +111,21 @@ def _my_stages(user) -> list[dict]:
     ]
 
 
-def _trend() -> list[dict]:
+def _trend(include_revenue: bool = True) -> list[dict]:
     rows = []
     for start, end, label in _month_windows(6):
         enrolments = Enrolment.objects.filter(created_at__gte=start, created_at__lt=end).count()
         certificates = Certificate.objects.filter(
             issued_at__gte=start, issued_at__lt=end, voided_at__isnull=True
         ).count()
-        revenue = (
-            Payment.objects.filter(
-                status=PaymentStatus.CONFIRMED, paid_at__gte=start, paid_at__lt=end
-            ).aggregate(total=Sum("amount"))["total"]
-            or 0
-        )
+        revenue = 0
+        if include_revenue:
+            revenue = (
+                Payment.objects.filter(
+                    status=PaymentStatus.CONFIRMED, paid_at__gte=start, paid_at__lt=end
+                ).aggregate(total=Sum("amount"))["total"]
+                or 0
+            )
         rows.append(
             {
                 "month": label,
@@ -164,6 +166,11 @@ def build_dashboard(user) -> dict:
     horizon_90 = today + timedelta(days=90)
     horizon_30 = today + timedelta(days=30)
 
+    role_ids = set(user.roles.values_list("id", flat=True))
+    finance_visible = getattr(user, "is_superuser", False) or not (
+        role_ids and role_ids <= {RoleCode.HR_MANAGER, RoleCode.HR_OFFICER}
+    )
+
     outstanding = Invoice.objects.filter(status__in=_OUTSTANDING_INVOICE_STATES)
     outstanding_total = outstanding.aggregate(
         total=Sum("total"), paid=Sum("amount_paid")
@@ -201,13 +208,21 @@ def build_dashboard(user) -> dict:
                 expiry_date__gte=today,
                 expiry_date__lte=horizon_90,
             ).count(),
-            "invoices_outstanding_count": outstanding.count(),
-            "invoices_outstanding_total": _money(outstanding_balance),
-            "revenue_collected_90d": _money(
-                Payment.objects.filter(
-                    status=PaymentStatus.CONFIRMED,
-                    paid_at__gte=now - timedelta(days=90),
-                ).aggregate(total=Sum("amount"))["total"]
+            "invoices_outstanding_count": (
+                outstanding.count() if finance_visible else 0
+            ),
+            "invoices_outstanding_total": (
+                _money(outstanding_balance) if finance_visible else "0.00"
+            ),
+            "revenue_collected_90d": (
+                _money(
+                    Payment.objects.filter(
+                        status=PaymentStatus.CONFIRMED,
+                        paid_at__gte=now - timedelta(days=90),
+                    ).aggregate(total=Sum("amount"))["total"]
+                )
+                if finance_visible
+                else "0.00"
             ),
             "medicals_expiring_30d": Medical.objects.filter(
                 active=True, expiry_date__gte=today, expiry_date__lte=horizon_30
@@ -216,7 +231,7 @@ def build_dashboard(user) -> dict:
         },
         "workflow": workflow,
         "my_stages": _my_stages(user),
-        "trend": _trend(),
+        "trend": _trend(include_revenue=finance_visible),
         "course_mix": _course_mix(),
         "upcoming_sessions": [
             {
@@ -250,18 +265,22 @@ def build_dashboard(user) -> dict:
                 }
                 for row in pending[:6]
             ],
-            "unpaid_invoices": [
-                {
-                    "id": row.id,
-                    "invoice_no": row.invoice_no,
-                    "issue_date": _iso(row.issue_date),
-                    "due_date": _iso(row.due_date),
-                    "currency": row.currency,
-                    "balance": _money((row.total or 0) - (row.amount_paid or 0)),
-                    "status": row.status,
-                }
-                for row in outstanding.order_by("due_date", "id")[:6]
-            ],
+            "unpaid_invoices": (
+                [
+                    {
+                        "id": row.id,
+                        "invoice_no": row.invoice_no,
+                        "issue_date": _iso(row.issue_date),
+                        "due_date": _iso(row.due_date),
+                        "currency": row.currency,
+                        "balance": _money((row.total or 0) - (row.amount_paid or 0)),
+                        "status": row.status,
+                    }
+                    for row in outstanding.order_by("due_date", "id")[:6]
+                ]
+                if finance_visible
+                else []
+            ),
             "certificates_awaiting_release": [
                 {
                     "id": row.id,

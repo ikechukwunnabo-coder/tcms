@@ -29,6 +29,19 @@ class LearnerDocumentUploadSerializer(serializers.Serializer):
     file = serializers.FileField()
 
 
+class LearnerLinkSerializer(serializers.ModelSerializer):
+    """Minimal learner payload for HR employee linking (no documents)."""
+
+    full_name = serializers.CharField(read_only=True)
+
+    class Meta:
+        model = Learner
+        fields = [
+            "id", "badge_no", "surname", "first_name", "middle_name",
+            "full_name", "company", "position", "active",
+        ]
+
+
 class LearnerSerializer(serializers.ModelSerializer):
     full_name = serializers.CharField(read_only=True)
     contacts = LearnerContactSerializer(many=True, read_only=True)

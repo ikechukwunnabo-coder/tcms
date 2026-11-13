@@ -3,7 +3,13 @@ import type { ReactNode } from "react";
 import { Link, Navigate, Route, Routes, useLocation } from "react-router-dom";
 import { ShieldAlert } from "lucide-react";
 import { useAuth } from "./auth/context";
-import { LEARNER_ROLES, USER_ADMIN_ROLES } from "./auth/roles";
+import {
+  ADMIN_TOOLS_ROLES,
+  FINANCE_ROLES,
+  HR_ROLES,
+  LEARNER_ROLES,
+  USER_ADMIN_ROLES,
+} from "./auth/roles";
 import type { RoleCode } from "./api/types";
 import { AppShell } from "./components/AppShell";
 import { LoginPage } from "./pages/LoginPage";
@@ -13,6 +19,40 @@ const DashboardPage = lazy(() =>
 );
 const WorkflowPage = lazy(() =>
   import("./pages/WorkflowPage").then((module) => ({ default: module.WorkflowPage })),
+);
+const HrPage = lazy(() =>
+  import("./pages/HrPage").then((module) => ({ default: module.HrPage })),
+);
+const FinancePage = lazy(() =>
+  import("./pages/FinancePage").then((module) => ({ default: module.FinancePage })),
+);
+const NotificationsPage = lazy(() =>
+  import("./pages/AdminPages").then((module) => ({
+    default: module.NotificationsPage,
+  })),
+);
+const DocumentsPage = lazy(() =>
+  import("./pages/AdminPages").then((module) => ({
+    default: module.DocumentsPage,
+  })),
+);
+const AuditPage = lazy(() =>
+  import("./pages/AdminPages").then((module) => ({ default: module.AuditPage })),
+);
+const WorkflowAdminPage = lazy(() =>
+  import("./pages/AdminPages").then((module) => ({
+    default: module.WorkflowAdminPage,
+  })),
+);
+const IntegrationPage = lazy(() =>
+  import("./pages/AdminPages").then((module) => ({
+    default: module.IntegrationPage,
+  })),
+);
+const ReportAccessPage = lazy(() =>
+  import("./pages/AdminPages").then((module) => ({
+    default: module.ReportAccessPage,
+  })),
 );
 const LearnersPage = lazy(() =>
   import("./pages/LearnersPage").then((module) => ({ default: module.LearnersPage })),
@@ -248,6 +288,22 @@ export function App() {
             </Guard>
           }
         />
+        <Route
+          path="hr"
+          element={
+            <Guard roles={HR_ROLES}>
+              <HrPage />
+            </Guard>
+          }
+        />
+        <Route
+          path="finance"
+          element={
+            <Guard roles={FINANCE_ROLES}>
+              <FinancePage />
+            </Guard>
+          }
+        />
         <Route path="scheduling" element={<SchedulingPage />} />
         <Route path="enrolments" element={<EnrolmentsPage />} />
         <Route
@@ -324,6 +380,54 @@ export function App() {
           }
         />
         <Route path="user-roles" element={<Navigate to="/roles" replace />} />
+        <Route
+          path="notifications"
+          element={
+            <Guard roles={ADMIN_TOOLS_ROLES}>
+              <NotificationsPage />
+            </Guard>
+          }
+        />
+        <Route
+          path="documents"
+          element={
+            <Guard roles={ADMIN_TOOLS_ROLES}>
+              <DocumentsPage />
+            </Guard>
+          }
+        />
+        <Route
+          path="audit"
+          element={
+            <Guard roles={ADMIN_TOOLS_ROLES}>
+              <AuditPage />
+            </Guard>
+          }
+        />
+        <Route
+          path="workflow-admin"
+          element={
+            <Guard roles={ADMIN_TOOLS_ROLES}>
+              <WorkflowAdminPage />
+            </Guard>
+          }
+        />
+        <Route
+          path="integration"
+          element={
+            <Guard roles={ADMIN_TOOLS_ROLES}>
+              <IntegrationPage />
+            </Guard>
+          }
+        />
+        <Route
+          path="report-access"
+          element={
+            <Guard roles={ADMIN_TOOLS_ROLES}>
+              <ReportAccessPage />
+            </Guard>
+          }
+        />
         <Route path="*" element={<NotFound />} />
       </Route>
     </Routes>

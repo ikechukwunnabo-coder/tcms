@@ -35,7 +35,9 @@ from apps.payroll.models import (
     Provision,
     TaxBand,
     TimeEntry,
+    Timesheet,
 )
+from apps.reference.models import Position
 
 
 def staff(username: str, role: RoleCode) -> User:
@@ -468,3 +470,181 @@ class PayrollAPITests(PayrollFixture, APITestCase):
         self.assertEqual(response.status_code, 200)
         rows = {row["code"]: row for row in response.data}
         self.assertEqual(rows["500000"]["debit"], Decimal("500.00"))
+
+class HrAccessAPITests(PayrollFixture, APITestCase):
+    def setUp(self):
+        self.manager = staff("hr_manager", RoleCode.HR_MANAGER)
+        self.officer = staff("hr_officer", RoleCode.HR_OFFICER)
+
+    def test_officer_employee_payload_omits_sensitive_fields(self):
+        self.client.force_authenticate(self.officer)
+        response = self.client.get(
+            reverse("payroll-employees-detail", args=[self.employee_one.pk])
+        )
+        self.assertEqual(response.status_code, 200)
+        for field in (
+            "basic_salary",
+            "hourly_rate",
+            "bank_name",
+            "bank_code",
+            "account_name",
+            "bank_account",
+        ):
+            self.assertNotIn(field, response.data)
+        self.assertIn("tax_id", response.data)
+        self.assertIn("pension_id", response.data)
+        self.assertIn("pay_frequency", response.data)
+
+    def test_manager_employee_payload_includes_sensitive_fields(self):
+        self.client.force_authenticate(self.manager)
+        response = self.client.get(
+            reverse("payroll-employees-detail", args=[self.employee_one.pk])
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertIn("basic_salary", response.data)
+        self.assertIn("bank_account", response.data)
+
+    def test_officer_cannot_write_hidden_employee_fields(self):
+        self.client.force_authenticate(self.officer)
+        response = self.client.patch(
+            reverse("payroll-employees-detail", args=[self.employee_one.pk]),
+            {"basic_salary": "1.00", "full_name": "Ada Updated"},
+            format="json",
+        )
+        self.assertEqual(response.status_code, 200)
+        self.employee_one.refresh_from_db()
+        self.assertEqual(self.employee_one.basic_salary, Decimal("450000"))
+        self.assertEqual(self.employee_one.full_name, "Ada Updated")
+
+    def test_officer_is_denied_sensitive_payroll_endpoints(self):
+        self.client.force_authenticate(self.officer)
+        for name in (
+            "payslips-list",
+            "pay-elements-list",
+            "provisions-list",
+            "tax-bands-list",
+            "payment-files-list",
+            "employee-pay-elements-list",
+            "pay-runs-list",
+            "accounts-list",
+        ):
+            with self.subTest(endpoint=name):
+                self.assertEqual(self.client.get(reverse(name)).status_code, 403)
+
+    def test_manager_can_read_payslips_elements_and_provisions(self):
+        self.client.force_authenticate(self.manager)
+        for name in (
+            "payslips-list",
+            "provisions-list",
+            "employee-pay-elements-list",
+        ):
+            with self.subTest(endpoint=name):
+                self.assertEqual(self.client.get(reverse(name)).status_code, 200)
+        for name in ("pay-runs-list", "pay-elements-list", "tax-bands-list"):
+            with self.subTest(endpoint=name):
+                self.assertEqual(self.client.get(reverse(name)).status_code, 403)
+
+    def test_officer_can_submit_but_not_approve_timesheet(self):
+        self.client.force_authenticate(self.officer)
+        response = self.client.post(
+            reverse("timesheets-list"),
+            {
+                "employee": self.employee_one.pk,
+                "period_start": "2026-07-01",
+                "period_end": "2026-07-31",
+            },
+            format="json",
+        )
+        self.assertEqual(response.status_code, 201, response.data)
+        timesheet_id = response.data["id"]
+
+        response = self.client.post(
+            reverse("timesheets-submit", args=[timesheet_id]), format="json"
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.data["status"], TimesheetStatus.SUBMITTED)
+
+        response = self.client.post(
+            reverse("timesheets-approve", args=[timesheet_id]), format="json"
+        )
+        self.assertEqual(response.status_code, 403)
+
+        self.client.force_authenticate(self.manager)
+        response = self.client.post(
+            reverse("timesheets-approve", args=[timesheet_id]), format="json"
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.data["status"], TimesheetStatus.APPROVED)
+
+    def test_officer_time_entries_omit_and_ignore_rate(self):
+        timesheet = Timesheet.objects.create(
+            employee=self.employee_one,
+            period_start=date(2026, 7, 1),
+            period_end=date(2026, 7, 31),
+        )
+        self.client.force_authenticate(self.officer)
+        response = self.client.post(
+            reverse("time-entries-list"),
+            {
+                "timesheet": timesheet.pk,
+                "work_date": "2026-07-01",
+                "hours": "8.00",
+                "rate": "9999.00",
+            },
+            format="json",
+        )
+        self.assertEqual(response.status_code, 201, response.data)
+        self.assertNotIn("rate", response.data)
+        entry = TimeEntry.objects.get(pk=response.data["id"])
+        self.assertEqual(entry.rate, Decimal("0"))
+
+    def test_hr_roles_are_denied_corporate_accounts(self):
+        self.client.force_authenticate(self.officer)
+        self.assertEqual(
+            self.client.get(reverse("corporate-accounts-list")).status_code, 403
+        )
+        self.client.force_authenticate(self.manager)
+        self.assertEqual(
+            self.client.get(reverse("corporate-accounts-list")).status_code, 403
+        )
+
+    def test_hr_dashboard_hides_finance_totals(self):
+        self.client.force_authenticate(self.officer)
+        response = self.client.get(reverse("dashboard"))
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.data["kpis"]["invoices_outstanding_total"], "0.00")
+        self.assertEqual(response.data["kpis"]["invoices_outstanding_count"], 0)
+        self.assertEqual(response.data["kpis"]["revenue_collected_90d"], "0.00")
+        self.assertEqual(response.data["work_queue"]["unpaid_invoices"], [])
+        self.assertTrue(
+            all(row["revenue"] == "0.00" for row in response.data["trend"])
+        )
+
+    def test_hr_positions_are_seeded(self):
+        call_command("seed_data", verbosity=0)
+        self.assertTrue(Position.objects.filter(posicode="POS011").exists())
+        self.assertTrue(Position.objects.filter(posicode="POS012").exists())
+
+    def test_manager_role_takes_precedence_over_officer(self):
+        both = staff("hr_both", RoleCode.HR_OFFICER)
+        both.roles.add(Role.objects.get(pk=int(RoleCode.HR_MANAGER)))
+        self.client.force_authenticate(both)
+        employee = self.client.get(
+            reverse("payroll-employees-detail", args=[self.employee_one.pk])
+        )
+        self.assertEqual(employee.status_code, 200)
+        self.assertIn("basic_salary", employee.data)
+        self.assertEqual(self.client.get(reverse("payslips-list")).status_code, 200)
+        self.assertEqual(self.client.get(reverse("pay-runs-list")).status_code, 403)
+
+    def test_finance_role_takes_precedence_over_officer(self):
+        both = staff("hr_accounts", RoleCode.HR_OFFICER)
+        both.roles.add(Role.objects.get(pk=int(RoleCode.ACCOUNTS)))
+        self.client.force_authenticate(both)
+        employee = self.client.get(
+            reverse("payroll-employees-detail", args=[self.employee_one.pk])
+        )
+        self.assertEqual(employee.status_code, 200)
+        self.assertIn("basic_salary", employee.data)
+        self.assertEqual(self.client.get(reverse("payslips-list")).status_code, 200)
+        self.assertEqual(self.client.get(reverse("accounts-list")).status_code, 200)

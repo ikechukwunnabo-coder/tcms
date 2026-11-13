@@ -34,6 +34,7 @@ from apps.medicals.views import MedicalViewSet
 from apps.notifications.views import NotificationTemplateViewSet, NotificationViewSet
 from apps.payroll.views import (
     AccountViewSet,
+    EmployeePayElementViewSet,
     EmployeeViewSet,
     JournalViewSet,
     PayElementViewSet,
@@ -132,6 +133,11 @@ router.register("payments", PaymentViewSet, basename="payments")
 router.register("accounts", AccountViewSet, basename="accounts")
 router.register("journal-entries", JournalViewSet, basename="journal-entries")
 router.register("payroll-employees", EmployeeViewSet, basename="payroll-employees")
+router.register(
+    "employee-pay-elements",
+    EmployeePayElementViewSet,
+    basename="employee-pay-elements",
+)
 router.register("pay-elements", PayElementViewSet, basename="pay-elements")
 router.register("pay-runs", PayRunViewSet, basename="pay-runs")
 router.register("payslips", PayslipViewSet, basename="payslips")

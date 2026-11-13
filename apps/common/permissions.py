@@ -11,7 +11,7 @@ from rest_framework.permissions import SAFE_METHODS, BasePermission
 
 from apps.common.enums import RoleCode
 
-# All 12 staff roles — "any authenticated staff member" (deny-by-default still
+# All 14 staff roles — "any authenticated staff member" (deny-by-default still
 # applies to users holding no role).
 ANY_ROLE = tuple(int(r) for r in RoleCode)
 

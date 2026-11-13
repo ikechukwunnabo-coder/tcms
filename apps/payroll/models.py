@@ -128,6 +128,13 @@ class Employee(TimeStampedModel):
     user = models.ForeignKey(
         settings.AUTH_USER_MODEL, null=True, blank=True, on_delete=models.SET_NULL
     )
+    position = models.ForeignKey(
+        "reference.Position",
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name="employees",
+    )
     pay_frequency = models.CharField(
         max_length=16, choices=PayFrequency.choices, default=PayFrequency.MONTHLY
     )

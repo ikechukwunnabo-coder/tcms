@@ -78,6 +78,34 @@ class ReportingAPITests(APITestCase):
         response = self.client.post("/api/v1/report-defs/", payload, format="json")
         self.assertEqual(response.status_code, 201, response.data)
 
+    def test_system_admin_can_assign_report_roles(self):
+        self._auth(self.admin)
+        response = self.client.patch(
+            f"/api/v1/report-defs/{self.definition.pk}/",
+            {"roles": [int(RoleCode.MD), int(RoleCode.REPORTS)]},
+            format="json",
+        )
+        self.assertEqual(response.status_code, 200, response.data)
+        self.definition.refresh_from_db()
+        self.assertSetEqual(
+            set(self.definition.roles.values_list("id", flat=True)),
+            {int(RoleCode.MD), int(RoleCode.REPORTS)},
+        )
+
+    def test_non_admin_cannot_assign_report_roles(self):
+        self._auth(self.md)
+        response = self.client.patch(
+            f"/api/v1/report-defs/{self.definition.pk}/",
+            {"roles": [int(RoleCode.REPORTS)]},
+            format="json",
+        )
+        self.assertEqual(response.status_code, 403)
+        self.definition.refresh_from_db()
+        self.assertEqual(
+            list(self.definition.roles.values_list("id", flat=True)),
+            [int(RoleCode.MD)],
+        )
+
 
 class DashboardAPITests(APITestCase):
     @classmethod

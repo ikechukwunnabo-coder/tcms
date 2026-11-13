@@ -5,6 +5,7 @@ from apps.payroll import services
 from apps.payroll.models import (
     Account,
     Employee,
+    EmployeePayElement,
     Journal,
     JournalLine,
     PayElement,
@@ -113,6 +114,8 @@ class JournalCreateSerializer(serializers.Serializer):
 
 
 class EmployeeSerializer(serializers.ModelSerializer):
+    position_name = serializers.CharField(source="position.name", read_only=True)
+
     class Meta:
         model = Employee
         fields = [
@@ -121,6 +124,8 @@ class EmployeeSerializer(serializers.ModelSerializer):
             "full_name",
             "learner",
             "user",
+            "position",
+            "position_name",
             "pay_frequency",
             "basic_salary",
             "hourly_rate",
@@ -131,6 +136,46 @@ class EmployeeSerializer(serializers.ModelSerializer):
             "tax_id",
             "pension_id",
             "active",
+        ]
+
+
+class EmployeeOfficerSerializer(serializers.ModelSerializer):
+    """HR Officer view: no salary, hourly rate or bank details."""
+
+    position_name = serializers.CharField(source="position.name", read_only=True)
+
+    class Meta:
+        model = Employee
+        fields = [
+            "id",
+            "staff_no",
+            "full_name",
+            "learner",
+            "user",
+            "position",
+            "position_name",
+            "pay_frequency",
+            "tax_id",
+            "pension_id",
+            "active",
+        ]
+
+
+class EmployeePayElementSerializer(serializers.ModelSerializer):
+    employee_name = serializers.CharField(source="employee.full_name", read_only=True)
+    element_code = serializers.CharField(source="element.code", read_only=True)
+    element_name = serializers.CharField(source="element.name", read_only=True)
+
+    class Meta:
+        model = EmployeePayElement
+        fields = [
+            "id",
+            "employee",
+            "employee_name",
+            "element",
+            "element_code",
+            "element_name",
+            "amount",
         ]
 
 
@@ -255,34 +300,63 @@ class TimeEntrySerializer(serializers.ModelSerializer):
         ]
 
 
+class TimeEntryOfficerSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = TimeEntry
+        fields = [
+            "id",
+            "timesheet",
+            "work_date",
+            "hours",
+            "kind",
+            "is_holiday",
+            "project",
+            "job_no",
+        ]
+
+
+_TIMESHEET_FIELDS = [
+    "id",
+    "employee",
+    "staff_no",
+    "period_start",
+    "period_end",
+    "status",
+    "total_hours",
+    "worked_days",
+    "approved_by",
+    "approved_at",
+    "entries",
+]
+_TIMESHEET_READ_ONLY = [
+    "id",
+    "status",
+    "total_hours",
+    "worked_days",
+    "approved_by",
+    "approved_at",
+    "entries",
+]
+
+
 class TimesheetSerializer(serializers.ModelSerializer):
     entries = TimeEntrySerializer(many=True, read_only=True)
     staff_no = serializers.CharField(source="employee.staff_no", read_only=True)
 
     class Meta:
         model = Timesheet
-        fields = [
-            "id",
-            "employee",
-            "staff_no",
-            "period_start",
-            "period_end",
-            "status",
-            "total_hours",
-            "worked_days",
-            "approved_by",
-            "approved_at",
-            "entries",
-        ]
-        read_only_fields = [
-            "id",
-            "status",
-            "total_hours",
-            "worked_days",
-            "approved_by",
-            "approved_at",
-            "entries",
-        ]
+        fields = _TIMESHEET_FIELDS
+        read_only_fields = _TIMESHEET_READ_ONLY
+
+
+class TimesheetOfficerSerializer(serializers.ModelSerializer):
+    entries = TimeEntryOfficerSerializer(many=True, read_only=True)
+    staff_no = serializers.CharField(source="employee.staff_no", read_only=True)
+
+    class Meta:
+        model = Timesheet
+        fields = _TIMESHEET_FIELDS
+        read_only_fields = _TIMESHEET_READ_ONLY
 
 
 class TimesheetCreateSerializer(serializers.Serializer):

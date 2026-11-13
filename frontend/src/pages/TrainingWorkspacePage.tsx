@@ -444,28 +444,34 @@ export function TrainingWorkspacePage() {
             <div className="detail-section">
               <h3>Training window</h3>
               <form
-                className="inline-form"
+                className="form-stack compact-form"
                 onSubmit={(event) => {
                   event.preventDefault();
                   saveDates.mutate();
                 }}
               >
-                <Input
-                  aria-label="Start date"
-                  type="date"
-                  value={editableDates.start_date}
-                  onChange={(event) =>
-                    setDateForm({ ...editableDates, start_date: event.target.value })
-                  }
-                />
-                <Input
-                  aria-label="End date"
-                  type="date"
-                  value={editableDates.end_date}
-                  onChange={(event) =>
-                    setDateForm({ ...editableDates, end_date: event.target.value })
-                  }
-                />
+                <div className="form-grid">
+                  <Field label="Start date" htmlFor="record-start-date">
+                    <Input
+                      id="record-start-date"
+                      type="date"
+                      value={editableDates.start_date}
+                      onChange={(event) =>
+                        setDateForm({ ...editableDates, start_date: event.target.value })
+                      }
+                    />
+                  </Field>
+                  <Field label="End date" htmlFor="record-end-date">
+                    <Input
+                      id="record-end-date"
+                      type="date"
+                      value={editableDates.end_date}
+                      onChange={(event) =>
+                        setDateForm({ ...editableDates, end_date: event.target.value })
+                      }
+                    />
+                  </Field>
+                </div>
                 <Button type="submit" size="sm" busy={saveDates.isPending}>
                   Save dates
                 </Button>
@@ -492,7 +498,7 @@ export function TrainingWorkspacePage() {
         </Card>
 
         <div className="workspace-main">
-          <div className="split-grid">
+          <div className="split-grid workspace-pair">
             <Card
               title="Joining instruction"
               aside={<Mail size={16} aria-hidden="true" />}
@@ -570,7 +576,7 @@ export function TrainingWorkspacePage() {
                       onChange={(event) => setCheckForm({ ...checkForm, check_date: event.target.value })}
                     />
                   </Field>
-                  <div className="line-row">
+                  <div className="form-grid">
                     <Field label="Systolic" htmlFor="systolic">
                       <Input
                         id="systolic"
@@ -701,7 +707,7 @@ export function TrainingWorkspacePage() {
             ) : null}
           </Card>
 
-          <div className="split-grid">
+          <div className="split-grid workspace-pair">
             <Card title="Training items">
               {record.items.length ? (
                 <ul className="plain-list">
